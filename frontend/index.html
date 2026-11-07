@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SapaRate — качество диалогов</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="nav">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
+            <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="4"/>
+            <path d="M16 4 a12 12 0 0 1 11.4 15.7" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="brand-text"><b>SapaRate</b><small>оценка качества диалогов</small></div>
+      </div>
+      <nav class="nav-links">
+        <a href="#/dialogs" data-route="dialogs"><span class="ico" data-icon="list"></span>Диалоги</a>
+        <a href="#/appeals" data-route="appeals"><span class="ico" data-icon="flag"></span>Апелляции <span class="nav-badge" id="appealBadge" hidden></span></a>
+        <a href="#/checklist" data-route="checklist"><span class="ico" data-icon="sliders"></span>Чек-лист</a>
+      </nav>
+      <div class="nav-foot" id="providerInfo"></div>
+    </aside>
+    <main class="view" id="view"></main>
+  </div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
