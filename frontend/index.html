@@ -17,7 +17,11 @@
         <a href="#/checklist" data-route="checklist">Чек-лист</a>
         <a href="#/compare" data-route="compare">Сравнение версий</a>
       </nav>
-      <div class="nav-foot" id="providerInfo"></div>
+      <div class="nav-right">
+        <button class="nav-foot" id="providerInfo" type="button" aria-haspopup="true" aria-expanded="false">модель</button>
+        <button class="themebtn" id="themeToggle" type="button" title="Переключить тему">☾ Тёмная</button>
+      </div>
+      <div class="pop" id="modelPop" hidden></div>
     </header>
     <main class="view" id="view"></main>
   </div>

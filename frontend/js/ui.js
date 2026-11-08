@@ -10,8 +10,9 @@ export function scoreColor(v) {
   if (v === null || v === undefined || Number.isNaN(+v)) return 'var(--muted)';
   const p = Math.max(0, Math.min(100, +v)) / 100;
   const hue = p * 128;
-  const light = 44 - Math.sin(p * Math.PI) * 4;
-  return `hsl(${hue.toFixed(1)} 72% ${light.toFixed(1)}%)`;
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const light = (dark ? 64 : 36) - Math.sin(p * Math.PI) * 3;
+  return `hsl(${hue.toFixed(1)} ${dark ? 45 : 55}% ${light.toFixed(1)}%)`;
 }
 
 export const clock = sec => {

@@ -149,7 +149,9 @@ class ChecklistEditor extends HTMLElement {
           <div class="small">${job.finished ? 'Готово' : 'Идёт оценка'}: ${job.done} из ${job.total}${job.failed ? `, ошибок ${job.failed}` : ''}. <a href="#/dialogs">Открыть диалоги →</a></div>` : ''}
       </div>` : ''}
       <div class="card card-pad stack">
-        <div class="row"><h3 class="grow">Веса</h3><span class="small muted">сумма ${num(sum)}</span></div>
+        <div class="row"><h3 class="grow">Веса</h3><span class="small muted" id="wSum">сумма ${num(sum)}</span></div>
+        ${Math.abs(sum - 100) > 0.001 ? `<div class="alert info small" id="wNote">Сумма весов: ${num(sum)}. Итог всё равно считается из 100: набранные баллы делятся на максимум.</div>
+        <button class="btn sm" data-action="norm100" id="norm100">Привести к 100</button>` : ''}
         <div class="weights">${weighted.map(c => `<div class="w"><span class="mono">${esc(c.id)}</span>
           <div class="bar"><div style="width:${sum ? (+c.weight / sum * 100) : 0}%"></div></div>
           <span class="num">${num(sum ? +c.weight / sum * (+d.max_total || 100) : 0, 1)}</span></div>`).join('')}</div>
@@ -231,6 +233,16 @@ class ChecklistEditor extends HTMLElement {
         return;
       }
       case 'del-crit': if (confirmDelete(d.criteria[i])) { d.criteria.splice(i, 1); this.rerenderKeepScroll(); } return;
+      case 'norm100': {
+        const ws = d.criteria.filter(c => c.type !== 'critical' && +c.weight > 0);
+        const tot = ws.reduce((a, c) => a + (+c.weight), 0);
+        if (!tot) return;
+        ws.forEach(c => { c.weight = Math.round(+c.weight / tot * 100); });
+        const rest = 100 - ws.reduce((a, c) => a + c.weight, 0);   // what rounding left over goes to the biggest weight
+        if (rest) ws.reduce((m, c) => (c.weight > m.weight ? c : m), ws[0]).weight += rest;
+        this.rerenderKeepScroll();
+        return;
+      }
       case 'dup': { const c = clone(d.criteria[i]); c.id += '_copy'; d.criteria.splice(i + 1, 0, c); this.rerenderKeepScroll(); return; }
       case 'up': if (i > 0) { [d.criteria[i - 1], d.criteria[i]] = [d.criteria[i], d.criteria[i - 1]]; this.rerenderKeepScroll(); } return;
       case 'down': if (i < d.criteria.length - 1) { [d.criteria[i + 1], d.criteria[i]] = [d.criteria[i], d.criteria[i + 1]]; this.rerenderKeepScroll(); } return;

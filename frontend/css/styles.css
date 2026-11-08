@@ -325,3 +325,43 @@ table.list .preview { color: var(--muted); max-width: 380px; white-space: nowrap
 }
 .transcript { top: 68px; max-height: calc(100vh - 86px); }
 .ed-side { top: 68px; }
+
+
+/* ---------- header right side, model popover, theme toggle ---------- */
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.nav-right .nav-foot { margin: 0; border: 0; background: transparent; padding: 4px 6px; cursor: pointer; color: var(--muted); font: inherit; font-size: 12px; border-radius: 4px; }
+.nav-right .nav-foot:hover { background: var(--panel-2); }
+.themebtn { border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+.themebtn:hover { background: var(--panel-2); }
+.pop { position: absolute; right: 24px; top: 50px; z-index: 40; width: 340px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); font-size: 13px; line-height: 1.45; }
+.pop .pop-t { color: var(--muted); font-size: 11px; margin: 8px 0 2px; }
+.pop .pop-t:first-child { margin-top: 0; }
+.pop ol { margin: 0; padding-left: 20px; }
+
+/* ---------- a bit more life (no gradients, no glow) ---------- */
+.card { box-shadow: 0 1px 1px rgba(60, 64, 67, .08); }
+.stat, .card-pad { box-shadow: 0 1px 1px rgba(60, 64, 67, .08); }
+table.list td { padding-top: 11px; padding-bottom: 11px; }
+.sumline { margin-bottom: 16px; }
+.searchbar { margin-bottom: 14px; }
+.loadbox { margin-bottom: 18px; }
+.btn.primary { box-shadow: none; }
+.view { padding-top: 24px; }
+
+/* ---------- dark theme ---------- */
+:root[data-theme="dark"] {
+  --bg: #202124; --panel: #292a2d; --panel-2: #303134; --ink: #e8eaed; --ink-2: #bdc1c6; --muted: #9aa0a6;
+  --line: #3c4043; --line-2: #35363a; --accent: #8ab4f8; --accent-ink: #202124; --accent-soft: #2b3a55;
+  --ok: #81c995; --ok-soft: #1f3a2a; --bad: #f28b82; --bad-soft: #4a2623; --warn: #fdd663; --warn-soft: #3d3416;
+  --na: #9aa0a6; --na-soft: #35363a; --hl: #4a4020; --ring-track: #3c4043; --nav-bg: #292a2d; --nav-ink: #bdc1c6; --nav-active: #2b3a55;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .card, :root[data-theme="dark"] .stat, :root[data-theme="dark"] .card-pad { box-shadow: none; }
+:root[data-theme="dark"] .btn.primary:hover { background: #a8c7fa; border-color: #a8c7fa; }
+:root[data-theme="dark"] .ref:hover { background: #3a4d70; }
+:root[data-theme="dark"] .toast.ok, :root[data-theme="dark"] .toast.bad { color: var(--bg); }
+:root[data-theme="dark"] .toast { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+:root[data-theme="dark"] .modal-back { background: rgba(0, 0, 0, .6); }
+:root[data-theme="dark"] .nav-links a.active { color: var(--accent); }
+:root[data-theme="dark"] .pop { box-shadow: none; }
+.pop { color: var(--ink); }

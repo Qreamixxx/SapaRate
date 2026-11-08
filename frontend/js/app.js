@@ -28,19 +28,57 @@ function render() {
   window.scrollTo(0, 0);
 }
 
+// ---- theme (remembered in localStorage; default light)
+const THEME_KEY = 'cqa:theme';
+function savedTheme() { try { return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'; } catch { return 'light'; } }
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const b = document.getElementById('themeToggle');
+  b.textContent = t === 'dark' ? '☀ Светлая' : '☾ Тёмная';
+  b.setAttribute('aria-pressed', String(t === 'dark'));
+}
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem(THEME_KEY, t); } catch { /* storage unavailable: theme is just not remembered */ }
+  applyTheme(t);
+  render(); // JS-coloured elements (score ring) pick up the new theme
+});
+applyTheme(savedTheme());
+
+// ---- model badge + popover with the chain of models and providers
+let lastHealth = null;
+const PROVIDER_NAME = { gemini: 'Gemini', openai: 'Groq (запасной)', mock: 'MOCK' };
+function popHtml(h) {
+  if (!h) return '<b>Сервер недоступен</b>';
+  if (h.provider === 'mock') return '<b>MOCK-режим</b><div>Нет ключа модели: оценки — заглушки.</div>';
+  const models = String(h.model || '').split(',').map(x => x.trim()).filter(Boolean);
+  return `<div class="pop-t">Цепочка провайдеров</div><div>${h.chain.map(c => esc(PROVIDER_NAME[c] || c)).join(' → ')}</div>
+    <div class="pop-t">Модели Gemini по порядку</div><ol>${models.map(m => `<li>${esc(m)}</li>`).join('')}</ol>
+    <div class="pop-t">Статус</div><div><span class="dot" style="background:var(--ok)"></span>работает · оценок в базе: ${h.evaluations}</div>`;
+}
+const pop = document.getElementById('modelPop'), badge0 = document.getElementById('providerInfo');
+let pinned = false;
+function showPop() { pop.innerHTML = popHtml(lastHealth); pop.hidden = false; badge0.setAttribute('aria-expanded', 'true'); }
+function hidePop() { pop.hidden = true; pinned = false; badge0.setAttribute('aria-expanded', 'false'); }
+badge0.addEventListener('mouseenter', showPop);
+badge0.addEventListener('mouseleave', () => { if (!pinned) pop.hidden = true; });
+badge0.addEventListener('click', e => { e.stopPropagation(); if (pinned) hidePop(); else { pinned = true; showPop(); } });
+document.addEventListener('click', e => { if (pinned && !pop.contains(e.target)) hidePop(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hidePop(); });
+
 async function refreshSidebar() {
   try {
     const h = await api.health();
-    const color = h.provider === 'mock' ? 'var(--warn)' : '#4fd1a0';
-    const tip = h.provider === 'mock' ? 'MOCK-режим: нет ключа модели, оценки-заглушки' : `Цепочка: ${h.chain.join(' → ')}\nМодели: ${h.model}\nОценок в базе: ${h.evaluations}`;
-    const info = document.getElementById('providerInfo');
-    info.title = tip;
-    info.innerHTML = `<span class="dot" style="background:${color}"></span>${h.provider === 'mock' ? 'MOCK' : 'модель'}`;
+    lastHealth = h;
+    const color = h.provider === 'mock' ? 'var(--warn)' : 'var(--ok)';
+    badge0.innerHTML = `<span class="dot" style="background:${color}"></span>${h.provider === 'mock' ? 'MOCK' : 'модель'}`;
+    if (!pop.hidden) pop.innerHTML = popHtml(h);
     const badge = document.getElementById('appealBadge');
     badge.hidden = !h.open_appeals;
     badge.textContent = h.open_appeals || '';
   } catch {
-    document.getElementById('providerInfo').innerHTML = '<span class="dot" style="background:#e8574a"></span>Сервер недоступен';
+    lastHealth = null;
+    badge0.innerHTML = '<span class="dot" style="background:var(--bad)"></span>Сервер недоступен';
   }
 }
 
