@@ -45,7 +45,9 @@ DEFAULT_CHECKLIST_FILE = ROOT / "config" / "checklist_v1.json"
 PROVIDER = env("PROVIDER", "auto").lower()
 
 GEMINI_API_KEY = env("GEMINI_API_KEY")
-GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3.8-flash")
+# One model or a comma-separated list. Free tier = only 20 requests per model per day, so the next model in the list
+# is used when one runs out. (gemini-3.5-flash / 3.6 / 3.7 / 3.8 were exhausted or very slow on 2026-11-08.)
+GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-3.5-flash-lite")
 # How much the model "thinks" before answering: minimal / low / medium / high (empty = model default).
 # Lower is much faster; "low" keeps enough reasoning for N/A vs "not done" decisions.
 GEMINI_THINKING = env("GEMINI_THINKING", "low").lower()
