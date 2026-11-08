@@ -37,7 +37,7 @@ def env_float(name: str, default: float) -> float:
 # --- data ---
 DATA_API_URL = env("DATA_API_URL")          # organizers' GET link (group_id is replaced automatically)
 DATA_DIR = ROOT / "data"                    # cached copies of downloaded datasets
-DB_PATH = ROOT / "storage" / "cqa.db"
+DB_PATH = Path(env("DB_PATH")) if env("DB_PATH") else ROOT / "storage" / "cqa.db"
 DEFAULT_CHECKLIST_FILE = ROOT / "config" / "checklist_v1.json"
 
 # --- LLM providers ---
