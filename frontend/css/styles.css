@@ -374,3 +374,24 @@ table.list td { padding-top: 11px; padding-bottom: 11px; }
 .lockbtn:hover { border-color: var(--muted); }
 #wmode.seg button { flex: 1; }
 @media (max-width: 860px) { .ed-row { grid-template-columns: 1fr; } }
+
+
+/* ---------- calm "Dialogs" page ---------- */
+.topbox { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-bottom: 16px; overflow: hidden; }
+.toprow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; min-height: 52px; }
+.topbox .sumline { margin: 0; gap: 10px; }
+.topbox .linkbtn#sumToggle, .topbox .linkbtn#loadToggle { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 13px; white-space: nowrap; }
+.topbox .linkbtn#sumToggle:hover, .topbox .linkbtn#loadToggle:hover { background: var(--panel-2); }
+.topbox > .card { border: 0; border-top: 1px solid var(--line); border-radius: 0; margin: 0 !important; box-shadow: none; }
+.topbox .loadbox { margin: 0; }
+.topbox #loadBody { border-top: 1px solid var(--line); padding: 14px 12px; }
+.topbox .panel-split { margin: 0; gap: 12px; }
+.topbox .panel-split .card { box-shadow: none; }
+.topbox .panel-split .row { align-items: stretch; }
+.topbox .panel-split .row > .btn, .topbox .panel-split .row > .input, .topbox .panel-split .row > .select { min-height: 36px; }
+#dlgBody td { height: 52px; padding-top: 0; padding-bottom: 0; font-size: 13px; }
+table.list th { font-size: 12px; font-weight: 500; }
+#dlgBody .badge { background: none; border: 0; padding: 0; color: var(--muted); font-weight: 400; font-size: 13px; }
+#dlgBody .badge.call { color: var(--ink-2); }
+#dlgBody .mono { font-size: 13px; }
+#dlgBody .preview { font-size: 13px; }

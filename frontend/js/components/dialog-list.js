@@ -54,17 +54,21 @@ class DialogList extends HTMLElement {
     this.innerHTML = `
       <div class="searchbar"><input class="input" data-f="q" placeholder="Поиск по ID диалога или тексту обращения" value="${esc(s.q)}" autocomplete="off"></div>
 
+      <div class="topbox">
+      <div class="toprow">
       <div class="sumline">
         <span>Диалогов <b>${s.items.length}</b></span><span class="sep">·</span>
         <span>Средний итог <b style="color:${scoreColor(avg)}">${num(avg, 1)}</b></span><span class="sep">·</span>
         <button class="linkbtn" id="critStat" title="Показать диалоги с грубой ошибкой">Грубых ошибок <b style="color:${crit ? 'var(--bad)' : 'inherit'}">${crit}</b></button><span class="sep">·</span>
         <button class="linkbtn" id="sumToggle">${s.showSummary ? 'Свернуть ▴' : 'Подробнее ▾'}</button>
       </div>
+      <button class="linkbtn" id="loadToggle">Загрузка и оценка ${(s.showLoad || (job && !job.finished)) ? '▾' : '▸'}</button>
+      </div>
 
       ${this.summaryBlock()}
 
       <div class="loadbox">
-        <button class="linkbtn" id="loadToggle">Загрузка и оценка ${(s.showLoad || (job && !job.finished)) ? '▾' : '▸'}</button>
+        
         <div id="loadBody" ${(s.showLoad || (job && !job.finished)) ? '' : 'hidden'}>
       <div class="panel-split">
         <div class="card card-pad stack">
@@ -95,6 +99,7 @@ class DialogList extends HTMLElement {
         </div>
       </div>
         </div>
+      </div>
       </div>
 
       <div class="card">
