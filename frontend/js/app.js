@@ -32,10 +32,10 @@ async function refreshSidebar() {
   try {
     const h = await api.health();
     const color = h.provider === 'mock' ? 'var(--warn)' : '#4fd1a0';
-    document.getElementById('providerInfo').innerHTML =
-      `<div><span class="dot" style="background:${color}"></span><b>${esc(h.provider === 'mock' ? 'MOCK-режим' : h.model)}</b></div>
-       <div>${h.provider === 'mock' ? 'Нет ключа модели — оценки-заглушки' : `провайдер: ${esc(h.chain.join(' → '))}`}</div>
-       <div>оценок: ${h.evaluations}</div>`;
+    const tip = h.provider === 'mock' ? 'MOCK-режим: нет ключа модели, оценки-заглушки' : `Цепочка: ${h.chain.join(' → ')}\nМодели: ${h.model}\nОценок в базе: ${h.evaluations}`;
+    const info = document.getElementById('providerInfo');
+    info.title = tip;
+    info.innerHTML = `<span class="dot" style="background:${color}"></span>${h.provider === 'mock' ? 'MOCK' : 'модель'}`;
     const badge = document.getElementById('appealBadge');
     badge.hidden = !h.open_appeals;
     badge.textContent = h.open_appeals || '';

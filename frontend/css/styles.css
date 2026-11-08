@@ -293,3 +293,35 @@ table.list .preview { color: var(--muted); max-width: 380px; white-space: nowrap
   .summary-side { width: 100%; }
   .toolbar .input { width: 100%; }
 }
+
+
+/* ---------- layout: top tabs, full-width content ---------- */
+.shell { display: block; min-height: 100vh; }
+.nav { position: sticky; top: 0; height: auto; z-index: 20; flex-direction: row; align-items: center; gap: 28px; padding: 0 24px; border-right: 0; border-bottom: 1px solid var(--line); background: var(--panel); }
+.brand { padding: 0; font-size: 18px; color: var(--ink); }
+.brand b { font-weight: 500; }
+.nav-links { flex-direction: row; gap: 4px; align-self: stretch; }
+.nav-links a { border-radius: 0; padding: 0 14px; height: 52px; display: inline-flex; align-items: center; border-bottom: 3px solid transparent; color: var(--ink-2); font-weight: 500; }
+.nav-links a:hover { background: var(--panel-2); }
+.nav-links a.active { background: transparent; color: var(--accent); border-bottom-color: var(--accent); }
+.nav-foot { margin: 0 0 0 auto; padding: 0; border: 0; background: transparent; font-size: 12px; color: var(--muted); cursor: help; }
+.view { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
+.searchbar { margin-bottom: 12px; }
+.searchbar .input { width: 100%; font-size: 15px; padding: 10px 14px; }
+.sumline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--ink-2); }
+.sumline .sep { color: var(--muted); }
+.linkbtn { border: 0; background: transparent; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
+.linkbtn:hover { text-decoration: underline; }
+.sumline .linkbtn { color: var(--ink-2); }
+.sumline #sumToggle { color: var(--accent); }
+.loadbox { margin-bottom: 14px; }
+.loadbox > .linkbtn { font-weight: 500; }
+.loadbox #loadBody { margin-top: 10px; }
+[hidden] { display: none !important; }
+@media (max-width: 860px) {
+  .nav { flex-wrap: wrap; padding: 6px 12px; gap: 8px; }
+  .nav-links { overflow-x: auto; }
+  .nav-links a { height: 40px; }
+}
+.transcript { top: 68px; max-height: calc(100vh - 86px); }
+.ed-side { top: 68px; }

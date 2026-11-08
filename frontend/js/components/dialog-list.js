@@ -8,7 +8,7 @@ class DialogList extends HTMLElement {
       group: store.get('group', ''), lang: store.get('lang', ''), channel: store.get('channel', ''),
       status: store.get('status', ''), q: '', groups: [], items: [], checklists: [], stats: null,
       checklistKey: store.get('checklistKey', ''), job: null, loading: true,
-      selected: new Set(store.get('selected', [])), summary: null, showSummary: store.get('showSummary', true),
+      selected: new Set(store.get('selected', [])), summary: null, showSummary: store.get('sumOpen', false), showLoad: false,
     };
     this.innerHTML = '<div class="skeleton" style="height:420px"></div>';
     this.load();
@@ -52,20 +52,20 @@ class DialogList extends HTMLElement {
     const job = s.job;
 
     this.innerHTML = `
-      <div class="page-head">
-        <div><h1>Диалоги</h1><div class="sub">Чаты и звонки операторов. Выберите диалог, чтобы оценить его и увидеть обоснование.</div></div>
-      </div>
+      <div class="searchbar"><input class="input" data-f="q" placeholder="Поиск по ID диалога или тексту обращения" value="${esc(s.q)}" autocomplete="off"></div>
 
-      <div class="stats">
-        <div class="card stat"><div class="k">Диалогов</div><div class="v">${s.items.length}</div></div>
-        <div class="card stat"><div class="k">Оценено</div><div class="v">${scored.length}<small> / ${s.items.length}</small></div></div>
-        <div class="card stat"><div class="k">Средний итог</div><div class="v" style="color:${scoreColor(avg)}">${num(avg, 1)}</div></div>
-        <div class="card stat" id="critStat" style="cursor:pointer" title="Показать диалоги с грубой ошибкой"><div class="k">Грубые ошибки</div><div class="v" style="color:${crit ? 'var(--bad)' : 'inherit'}">${crit}</div></div>
-        <div class="card stat"><div class="k">Стоимость оценки</div><div class="v">$${num(st.avg_cost_usd ?? 0, 4)}<small> · ${num(st.avg_input_tokens ?? 0, 0)}+${num(st.avg_output_tokens ?? 0, 0)} ток.</small></div></div>
+      <div class="sumline">
+        <span>Диалогов <b>${s.items.length}</b></span><span class="sep">·</span>
+        <span>Средний итог <b style="color:${scoreColor(avg)}">${num(avg, 1)}</b></span><span class="sep">·</span>
+        <button class="linkbtn" id="critStat" title="Показать диалоги с грубой ошибкой">Грубых ошибок <b style="color:${crit ? 'var(--bad)' : 'inherit'}">${crit}</b></button><span class="sep">·</span>
+        <button class="linkbtn" id="sumToggle">${s.showSummary ? 'Свернуть ▴' : 'Подробнее ▾'}</button>
       </div>
 
       ${this.summaryBlock()}
 
+      <div class="loadbox">
+        <button class="linkbtn" id="loadToggle">Загрузка и оценка ${(s.showLoad || (job && !job.finished)) ? '▾' : '▸'}</button>
+        <div id="loadBody" ${(s.showLoad || (job && !job.finished)) ? '' : 'hidden'}>
       <div class="panel-split">
         <div class="card card-pad stack">
           <h3>Наборы диалогов</h3>
@@ -94,6 +94,8 @@ class DialogList extends HTMLElement {
               ${job.errors?.length ? ` — <span title="${esc(job.errors.map(e => `${e.conversation_id}: ${e.error}`).join('\n'))}">${esc(job.errors[0].error.slice(0, 120))}</span>` : ''}</div></div>` : ''}
         </div>
       </div>
+        </div>
+      </div>
 
       <div class="card">
         <div class="toolbar">
@@ -101,7 +103,6 @@ class DialogList extends HTMLElement {
           <select class="select" data-f="lang"><option value="">Все языки</option>${langs.map(l => `<option ${s.lang === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
           <select class="select" data-f="channel"><option value="">Чаты и звонки</option><option value="chat" ${s.channel === 'chat' ? 'selected' : ''}>Только чаты</option><option value="call" ${s.channel === 'call' ? 'selected' : ''}>Только звонки</option></select>
           <select class="select" data-f="status"><option value="">Любой статус</option><option value="done" ${s.status === 'done' ? 'selected' : ''}>Оценённые</option><option value="todo" ${s.status === 'todo' ? 'selected' : ''}>Без оценки</option><option value="critical" ${s.status === 'critical' ? 'selected' : ''}>С грубой ошибкой</option></select>
-          <input class="input" data-f="q" placeholder="Поиск по ID или тексту" value="${esc(s.q)}">
           <span class="grow"></span><span class="small muted">Показано: ${rows.length}</span>
         </div>
         ${s.items.length === 0 ? `<div class="empty"><h3>Диалогов пока нет</h3>Введите group_id (например, <b>DEV</b>) и нажмите «Загрузить из API».</div>` : `
@@ -115,20 +116,20 @@ class DialogList extends HTMLElement {
 
   summaryBlock() {
     const s = this.state, m = s.summary;
-    if (!m || !m.evaluated) return '';
+    if (!s.showSummary) return '';
+    if (!m || !m.evaluated) return '<div class="card card-pad small muted" style="margin-bottom:16px">Оценённых диалогов пока нет.</div>';
     const pct = (c, k) => (c.percent[k] ?? 0);
     const cell = c => c.type === 'scale'
       ? Object.entries(c.counts).filter(([k]) => k !== 'na').sort((a, b) => b[0] - a[0]).map(([k, n]) => `${k}: ${n}`).join(' · ') + (c.counts.na ? ` · N/A: ${c.counts.na}` : '')
       : c.type === 'critical'
         ? `нарушение: ${c.counts.yes || 0}`
         : `Да ${num(pct(c, 'yes'), 0)}% · Нет ${num(pct(c, 'no'), 0)}% · N/A ${num(pct(c, 'na'), 0)}%`;
+    const st = s.stats || {};
     return `<div class="card card-pad stack" style="margin-bottom:16px">
-      <div class="row"><h3 class="grow">Сводка по набору${s.group ? ` ${esc(s.group)}` : ''}</h3>
-        <span class="small muted">Оценено ${m.evaluated} из ${m.dialogues} · средний итог <b>${num(m.avg_total, 1)}</b></span>
-        <button class="btn sm" id="sumToggle">${s.showSummary ? 'Свернуть' : 'Развернуть'}</button></div>
-      ${s.showSummary ? `<div class="table-wrap"><table class="list"><thead><tr><th>Критерий</th><th>Ответы (по последней оценке каждого диалога)</th></tr></thead>
+      <div class="small muted">Оценено ${m.evaluated} из ${m.dialogues} · стоимость оценки $${num(st.avg_cost_usd ?? 0, 4)} · токены ${num(st.avg_input_tokens ?? 0, 0)}+${num(st.avg_output_tokens ?? 0, 0)}</div>
+      <div class="table-wrap"><table class="list"><thead><tr><th>Критерий</th><th>Ответы (по последней оценке каждого диалога)</th></tr></thead>
         <tbody>${m.criteria.map(c => `<tr><td>${esc(c.title)}</td><td class="small">${cell(c)}</td></tr>`).join('')}</tbody></table></div>
-        <div class="small">Диалогов с грубой ошибкой: ${m.critical.length ? m.critical.map(id => `<a href="#/dialog/${encodeURIComponent(id)}" class="mono">${esc(id)}</a>`).join(', ') : '0'}</div>` : ''}
+      <div class="small">Диалогов с грубой ошибкой: ${m.critical.length ? m.critical.map(id => `<a href="#/dialog/${encodeURIComponent(id)}" class="mono">${esc(id)}</a>`).join(', ') : '0'}</div>
     </div>`;
   }
 
@@ -174,7 +175,8 @@ class DialogList extends HTMLElement {
       this.render();
     });
     this.querySelector('#critStat')?.addEventListener('click', () => { s.status = 'critical'; store.set('status', 'critical'); this.render(); });
-    this.querySelector('#sumToggle')?.addEventListener('click', () => { s.showSummary = !s.showSummary; store.set('showSummary', s.showSummary); this.render(); });
+    this.querySelector('#sumToggle')?.addEventListener('click', () => { s.showSummary = !s.showSummary; store.set('sumOpen', s.showSummary); this.render(); });
+    this.querySelector('#loadToggle')?.addEventListener('click', () => { s.showLoad = !s.showLoad; this.render(); });
     this.querySelector('#batchSel')?.addEventListener('click', () => this.batch(false, [...s.selected]));
     this.querySelector('#dlgBody')?.addEventListener('click', e => {
       if (e.target.closest('input')) return;

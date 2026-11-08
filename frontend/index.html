@@ -9,24 +9,16 @@
 </head>
 <body>
   <div class="shell">
-    <aside class="nav">
-      <div class="brand">
-        <div class="brand-mark">
-          <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
-            <circle cx="16" cy="16" r="12" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="4"/>
-            <path d="M16 4 a12 12 0 0 1 11.4 15.7" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="brand-text"><b>SapaRate</b><small>оценка качества диалогов</small></div>
-      </div>
+    <header class="nav">
+      <div class="brand"><b>SapaRate</b></div>
       <nav class="nav-links">
-        <a href="#/dialogs" data-route="dialogs"><span class="ico" data-icon="list"></span>Диалоги</a>
-        <a href="#/appeals" data-route="appeals"><span class="ico" data-icon="flag"></span>Апелляции <span class="nav-badge" id="appealBadge" hidden></span></a>
-        <a href="#/checklist" data-route="checklist"><span class="ico" data-icon="sliders"></span>Чек-лист</a>
-        <a href="#/compare" data-route="compare"><span class="ico" data-icon="refresh"></span>Сравнение версий</a>
+        <a href="#/dialogs" data-route="dialogs">Диалоги</a>
+        <a href="#/appeals" data-route="appeals">Апелляции <span class="nav-badge" id="appealBadge" hidden></span></a>
+        <a href="#/checklist" data-route="checklist">Чек-лист</a>
+        <a href="#/compare" data-route="compare">Сравнение версий</a>
       </nav>
       <div class="nav-foot" id="providerInfo"></div>
-    </aside>
+    </header>
     <main class="view" id="view"></main>
   </div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
