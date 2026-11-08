@@ -8,6 +8,7 @@ class DialogList extends HTMLElement {
       group: store.get('group', ''), lang: store.get('lang', ''), channel: store.get('channel', ''),
       status: store.get('status', ''), q: '', groups: [], items: [], checklists: [], stats: null,
       checklistKey: store.get('checklistKey', ''), job: null, loading: true,
+      selected: new Set(store.get('selected', [])), summary: null, showSummary: store.get('showSummary', true),
     };
     this.innerHTML = '<div class="skeleton" style="height:420px"></div>';
     this.load();
@@ -23,6 +24,7 @@ class DialogList extends HTMLElement {
       const keys = checklists.map(c => `${c.checklist_id}@${c.latest}`);
       if (!keys.includes(this.state.checklistKey)) this.state.checklistKey = keys[0] || '';
       this.state.items = await api.conversations(this.state.group);
+      this.state.summary = await api.summary(this.state.group).catch(() => null);
     } catch (e) { toast(e.message, 'bad'); }
     this.state.loading = false;
     this.render();
@@ -58,9 +60,11 @@ class DialogList extends HTMLElement {
         <div class="card stat"><div class="k">Диалогов</div><div class="v">${s.items.length}</div></div>
         <div class="card stat"><div class="k">Оценено</div><div class="v">${scored.length}<small> / ${s.items.length}</small></div></div>
         <div class="card stat"><div class="k">Средний итог</div><div class="v" style="color:${scoreColor(avg)}">${num(avg, 1)}</div></div>
-        <div class="card stat"><div class="k">Грубые ошибки</div><div class="v" style="color:${crit ? 'var(--bad)' : 'inherit'}">${crit}</div></div>
+        <div class="card stat" id="critStat" style="cursor:pointer" title="Показать диалоги с грубой ошибкой"><div class="k">Грубые ошибки</div><div class="v" style="color:${crit ? 'var(--bad)' : 'inherit'}">${crit}</div></div>
         <div class="card stat"><div class="k">Стоимость оценки</div><div class="v">$${num(st.avg_cost_usd ?? 0, 4)}<small> · ${num(st.avg_input_tokens ?? 0, 0)}+${num(st.avg_output_tokens ?? 0, 0)} ток.</small></div></div>
       </div>
+
+      ${this.summaryBlock()}
 
       <div class="panel-split">
         <div class="card card-pad stack">
@@ -82,6 +86,7 @@ class DialogList extends HTMLElement {
           <div class="row">
             <button class="btn primary" id="batchMissing" ${job && !job.finished ? 'disabled' : ''}>${icon('spark')} Оценить неоценённые</button>
             <button class="btn" id="batchAll" ${job && !job.finished ? 'disabled' : ''}>${icon('refresh')} Переоценить показанные (${rows.length})</button>
+            <button class="btn" id="batchSel" ${(job && !job.finished) || !s.selected.size ? 'disabled' : ''}>${icon('refresh')} Переоценить выбранные (${s.selected.size})</button>
           </div>
           ${job ? `<div class="stack" style="gap:6px">
               <div class="progress"><div style="width:${job.total ? Math.round((job.done + job.failed) / job.total * 100) : 100}%"></div></div>
@@ -101,16 +106,36 @@ class DialogList extends HTMLElement {
         </div>
         ${s.items.length === 0 ? `<div class="empty"><h3>Диалогов пока нет</h3>Введите group_id (например, <b>DEV</b>) и нажмите «Загрузить из API».</div>` : `
         <div class="table-wrap"><table class="list">
-          <thead><tr><th>Итог</th><th>Диалог</th><th>Канал</th><th>Язык</th><th>Реплик</th><th>Обращение клиента</th><th>Чек-лист</th><th>Оценено</th></tr></thead>
+          <thead><tr><th style="width:30px"><input type="checkbox" id="selAll" title="Выбрать все показанные" ${rows.length && rows.every(c => s.selected.has(c.conversation_id)) ? 'checked' : ''}></th><th>Итог</th><th>Диалог</th><th>Канал</th><th>Язык</th><th>Реплик</th><th>Обращение клиента</th><th>Чек-лист</th><th>Оценено</th></tr></thead>
           <tbody>${rows.map(c => this.row(c)).join('')}</tbody>
         </table></div>`}
       </div>`;
     this.bind();
   }
 
+  summaryBlock() {
+    const s = this.state, m = s.summary;
+    if (!m || !m.evaluated) return '';
+    const pct = (c, k) => (c.percent[k] ?? 0);
+    const cell = c => c.type === 'scale'
+      ? Object.entries(c.counts).filter(([k]) => k !== 'na').sort((a, b) => b[0] - a[0]).map(([k, n]) => `${k}: ${n}`).join(' · ') + (c.counts.na ? ` · N/A: ${c.counts.na}` : '')
+      : c.type === 'critical'
+        ? `нарушение: ${c.counts.yes || 0}`
+        : `Да ${num(pct(c, 'yes'), 0)}% · Нет ${num(pct(c, 'no'), 0)}% · N/A ${num(pct(c, 'na'), 0)}%`;
+    return `<div class="card card-pad stack" style="margin-bottom:16px">
+      <div class="row"><h3 class="grow">Сводка по набору${s.group ? ` ${esc(s.group)}` : ''}</h3>
+        <span class="small muted">Оценено ${m.evaluated} из ${m.dialogues} · средний итог <b>${num(m.avg_total, 1)}</b></span>
+        <button class="btn sm" id="sumToggle">${s.showSummary ? 'Свернуть' : 'Развернуть'}</button></div>
+      ${s.showSummary ? `<div class="table-wrap"><table class="list"><thead><tr><th>Критерий</th><th>Ответы (по последней оценке каждого диалога)</th></tr></thead>
+        <tbody>${m.criteria.map(c => `<tr><td>${esc(c.title)}</td><td class="small">${cell(c)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="small">Диалогов с грубой ошибкой: ${m.critical.length ? m.critical.map(id => `<a href="#/dialog/${encodeURIComponent(id)}" class="mono">${esc(id)}</a>`).join(', ') : '0'}</div>` : ''}
+    </div>`;
+  }
+
   row(c) {
     const l = c.latest;
     return `<tr data-id="${esc(c.conversation_id)}">
+      <td><input type="checkbox" class="rowSel" data-sel="${esc(c.conversation_id)}" ${this.state.selected.has(c.conversation_id) ? 'checked' : ''}></td>
       <td><div class="score-cell"><cqa-score-ring size="38" value="${l ? l.total ?? '' : ''}" static></cqa-score-ring>
         ${l?.critical_error ? `<span class="flag-red" title="Грубая ошибка">${icon('alert')}</span>` : ''}
         ${l?.appealed ? '<span class="badge" title="Есть решение по апелляции">апелл.</span>' : ''}</div></td>
@@ -136,7 +161,23 @@ class DialogList extends HTMLElement {
         if (el.dataset.f === 'q') { const inp = this.querySelector('[data-f="q"]'); inp.focus(); inp.setSelectionRange(pos, pos); }
       });
     });
+    this.querySelector('tbody')?.addEventListener('change', e => {
+      const id = e.target.dataset?.sel;
+      if (!id) return;
+      e.target.checked ? s.selected.add(id) : s.selected.delete(id);
+      store.set('selected', [...s.selected]);
+      this.render();
+    });
+    this.querySelector('#selAll')?.addEventListener('change', e => {
+      this.filtered().forEach(c => e.target.checked ? s.selected.add(c.conversation_id) : s.selected.delete(c.conversation_id));
+      store.set('selected', [...s.selected]);
+      this.render();
+    });
+    this.querySelector('#critStat')?.addEventListener('click', () => { s.status = 'critical'; store.set('status', 'critical'); this.render(); });
+    this.querySelector('#sumToggle')?.addEventListener('click', () => { s.showSummary = !s.showSummary; store.set('showSummary', s.showSummary); this.render(); });
+    this.querySelector('#batchSel')?.addEventListener('click', () => this.batch(false, [...s.selected]));
     this.querySelector('tbody')?.addEventListener('click', e => {
+      if (e.target.closest('input')) return;
       const tr = e.target.closest('tr[data-id]');
       if (tr) location.hash = `#/dialog/${encodeURIComponent(tr.dataset.id)}`;
     });
@@ -173,11 +214,11 @@ class DialogList extends HTMLElement {
     } catch (e) { toast(`Файл не загружен: ${e.message}`, 'bad'); }
   }
 
-  async batch(onlyMissing) {
+  async batch(onlyMissing, selectedIds) {
     const [checklist_id, v] = this.state.checklistKey.split('@');
     if (!checklist_id) return toast('Нет чек-листа', 'bad');
-    const ids = this.filtered().map(c => c.conversation_id);
-    if (!ids.length) return toast('Нет диалогов в списке', 'bad');
+    const ids = selectedIds || this.filtered().map(c => c.conversation_id);
+    if (!ids.length) return toast(selectedIds ? 'Ничего не выбрано' : 'Нет диалогов в списке', 'bad');
     try {
       const job = await api.batch({ checklist_id, version: +v, conversation_ids: ids, only_missing: onlyMissing });
       if (!job.total) return toast('Все показанные диалоги уже оценены этой версией чек-листа', 'ok');
@@ -198,6 +239,7 @@ class DialogList extends HTMLElement {
           last = job.done + job.failed;
           this.state.items = await api.conversations(this.state.group);
           this.state.stats = await api.stats();
+          this.state.summary = await api.summary(this.state.group).catch(() => null);
           this.render();
         }
         if (job.finished) {

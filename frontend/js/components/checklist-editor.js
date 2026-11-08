@@ -141,7 +141,10 @@ class ChecklistEditor extends HTMLElement {
         <h3>Версия v${s.saved.version} сохранена</h3>
         <div class="small">Примените её к диалогам набора — старые оценки сохранятся в истории.</div>
         <div class="row"><select class="select grow" id="applyGroup">${s.groups.map(g => `<option value="${esc(g.group_id)}">${esc(g.group_id)} (${g.count})</option>`).join('')}</select>
-          <button class="btn primary" data-action="apply" ${job && !job.finished ? 'disabled' : ''}>Переоценить</button></div>
+          <button class="btn primary" data-action="apply" ${job && !job.finished ? 'disabled' : ''} title="Весь выбранный набор">Переоценить набор</button></div>
+        <div class="row"><button class="btn grow" data-action="apply-sel" ${job && !job.finished || !this.selectedIds().length ? 'disabled' : ''}>Переоценить выбранные (${this.selectedIds().length})</button>
+          <a class="btn grow" href="#/compare">Сравнение версий →</a></div>
+        <div class="small muted">Выбранные — галочки в списке «Диалоги».</div>
         ${job ? `<div class="progress"><div style="width:${job.total ? Math.round((job.done + job.failed) / job.total * 100) : 100}%"></div></div>
           <div class="small">${job.finished ? 'Готово' : 'Идёт оценка'}: ${job.done} из ${job.total}${job.failed ? `, ошибок ${job.failed}` : ''}. <a href="#/dialogs">Открыть диалоги →</a></div>` : ''}
       </div>` : ''}
@@ -248,6 +251,7 @@ class ChecklistEditor extends HTMLElement {
         return;
       }
       case 'apply': return this.apply();
+      case 'apply-sel': return this.apply(this.selectedIds());
       default:
     }
   }
@@ -263,11 +267,13 @@ class ChecklistEditor extends HTMLElement {
     } catch (e) { toast(e.message, 'bad', 8000); }
   }
 
-  async apply() {
+  selectedIds() { try { return JSON.parse(localStorage.getItem('cqa:selected') || '[]'); } catch { return []; } }
+
+  async apply(ids) {
     const s = this.state;
     const group_id = this.querySelector('#applyGroup')?.value;
     try {
-      const job = await api.batch({ checklist_id: s.saved.checklist_id, version: s.saved.version, group_id, only_missing: true });
+      const job = await api.batch({ checklist_id: s.saved.checklist_id, version: s.saved.version, group_id, only_missing: true, ...(ids ? { conversation_ids: ids } : {}) });
       s.job = job;
       this.renderSide();
       if (!job.total) return toast('Все диалоги набора уже оценены этой версией', 'ok');
