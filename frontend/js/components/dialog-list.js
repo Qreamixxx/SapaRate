@@ -107,7 +107,7 @@ class DialogList extends HTMLElement {
         ${s.items.length === 0 ? `<div class="empty"><h3>Диалогов пока нет</h3>Введите group_id (например, <b>DEV</b>) и нажмите «Загрузить из API».</div>` : `
         <div class="table-wrap"><table class="list">
           <thead><tr><th style="width:30px"><input type="checkbox" id="selAll" title="Выбрать все показанные" ${rows.length && rows.every(c => s.selected.has(c.conversation_id)) ? 'checked' : ''}></th><th>Итог</th><th>Диалог</th><th>Канал</th><th>Язык</th><th>Реплик</th><th>Обращение клиента</th><th>Чек-лист</th><th>Оценено</th></tr></thead>
-          <tbody>${rows.map(c => this.row(c)).join('')}</tbody>
+          <tbody id="dlgBody">${rows.map(c => this.row(c)).join('')}</tbody>
         </table></div>`}
       </div>`;
     this.bind();
@@ -161,7 +161,7 @@ class DialogList extends HTMLElement {
         if (el.dataset.f === 'q') { const inp = this.querySelector('[data-f="q"]'); inp.focus(); inp.setSelectionRange(pos, pos); }
       });
     });
-    this.querySelector('tbody')?.addEventListener('change', e => {
+    this.querySelector('#dlgBody')?.addEventListener('change', e => {
       const id = e.target.dataset?.sel;
       if (!id) return;
       e.target.checked ? s.selected.add(id) : s.selected.delete(id);
@@ -176,7 +176,7 @@ class DialogList extends HTMLElement {
     this.querySelector('#critStat')?.addEventListener('click', () => { s.status = 'critical'; store.set('status', 'critical'); this.render(); });
     this.querySelector('#sumToggle')?.addEventListener('click', () => { s.showSummary = !s.showSummary; store.set('showSummary', s.showSummary); this.render(); });
     this.querySelector('#batchSel')?.addEventListener('click', () => this.batch(false, [...s.selected]));
-    this.querySelector('tbody')?.addEventListener('click', e => {
+    this.querySelector('#dlgBody')?.addEventListener('click', e => {
       if (e.target.closest('input')) return;
       const tr = e.target.closest('tr[data-id]');
       if (tr) location.hash = `#/dialog/${encodeURIComponent(tr.dataset.id)}`;
