@@ -165,6 +165,17 @@ def summary(group_id: Optional[str] = None):
     return service.summary(group_id or None)
 
 
+class SandboxReq(BaseModel):
+    text: str
+    checklist_id: Optional[str] = None
+
+
+@app.post("/api/sandbox")
+def sandbox(body: SandboxReq):
+    from . import sandbox as sb
+    return sb.evaluate_text(body.text, body.checklist_id)
+
+
 @app.get("/api/appeals")
 def appeals(status: Optional[str] = None, evaluation_id: Optional[str] = None):
     return service.list_appeals(status, evaluation_id)

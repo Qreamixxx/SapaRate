@@ -26,6 +26,7 @@ const q = params => {
 };
 
 export const api = {
+  sandbox: text => req('POST', '/api/sandbox', { text }),
   health: () => req('GET', '/api/health'),
   stats: () => req('GET', '/api/stats'),
   groups: () => req('GET', '/api/groups'),

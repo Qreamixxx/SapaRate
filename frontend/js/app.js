@@ -8,12 +8,14 @@ import './components/evaluation-view.js';
 import './components/appeals-view.js';
 import './components/checklist-editor.js';
 import './components/compare-view.js';
+import './components/trainer-view.js';
 
 const routes = {
   dialogs: () => '<cqa-dialog-list></cqa-dialog-list>',
   dialog: id => `<cqa-evaluation-view conversation-id="${esc(id)}"></cqa-evaluation-view>`,
   appeals: () => '<cqa-appeals-view></cqa-appeals-view>',
   checklist: () => '<cqa-checklist-editor></cqa-checklist-editor>',
+  trainer: () => '<cqa-trainer-view></cqa-trainer-view>',
   compare: () => '<cqa-compare-view></cqa-compare-view>',
 };
 
