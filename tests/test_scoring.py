@@ -107,3 +107,9 @@ def test_checklist_validation():
     with pytest.raises(ValueError) as e:
         normalize_checklist(bad)
     assert "вес" in str(e.value) and "повторяется" in str(e.value)
+
+
+@pytest.mark.parametrize("raw,expected", [(50.625, 50.63), (50.624, 50.62), (33.335, 33.34), (100, 100.0), (87.335, 87.34), (0.005, 0.01)])
+def test_total_rounding_is_half_up(raw, expected):
+    """Organizers: final_score is rounded half up to 2 digits (50.625 -> 50.63), not banker's rounding."""
+    assert round_half_up(raw, 2) == expected
