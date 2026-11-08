@@ -215,7 +215,8 @@ def _drop_bad_refs(items: list[dict], n: int) -> list[dict]:
 
 
 # ---------------------------------------------------------------- providers
-def _backoff(fn, label: str):
+def _backoff(fn, label: str, quick: bool = False):
+    """quick=True: with several keys a per-minute 429 is not waited out - the caller tries the next key."""
     waits = [5, 15, 30, 60]
     for attempt in range(len(waits) + 1):
         try:
@@ -226,6 +227,8 @@ def _backoff(fn, label: str):
             if e.status == 429 and "PerDay" in quota:  # daily limit: waiting will not help, switch provider now
                 raise RateLimited(f"{label}: дневной лимит исчерпан ({quota}), сброс в полночь по тихоокеанскому времени") from None
             retryable = e.status in (0, 429, 500, 502, 503, 504)  # 0 = timeout / no connection
+            if quick and e.status == 429:
+                raise RateLimited(f"{label}: лимит запросов в минуту") from None
             if retryable and attempt < (1 if e.status == 0 else len(waits)):
                 try:
                     wait = float(e.headers.get("retry-after") or waits[attempt])
@@ -282,25 +285,32 @@ def call_gemini(system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
     if not keys:
         raise LLMError("Не задан GEMINI_API_KEY / GEMINI_API_KEYS в .env")
     last: Exception | None = None
-    for model in gemini_models():
-        for n, key in enumerate(keys, 1):
-            if (model, n) in _dead:
-                continue
-            try:
-                text, usage = _call_gemini_model(model, key, system, turns, cl)
-            except RateLimited as e:
-                last = e
-                if "дневной" in str(e):
-                    _dead.add((model, n))
-                print(f"[gemini] ключ {n} / {model}: лимит, перехожу дальше", flush=True)
-                continue
-            except LLMError as e:
-                last = e
-                print(f"[gemini] ключ {n} / {model}: {str(e)[:80]}", flush=True)
-                break  # not a key problem (timeout, bad answer): try the next model
-            _key_calls[n] = _key_calls.get(n, 0) + 1
-            usage["model"], usage["key"] = model, n
-            return text, usage
+    for attempt in range(4):  # extra passes only when everything was limited per minute (not daily)
+        minute_limited = False
+        for model in gemini_models():
+            for n, key in enumerate(keys, 1):
+                if (model, n) in _dead:
+                    continue
+                try:
+                    text, usage = _call_gemini_model(model, key, system, turns, cl)
+                except RateLimited as e:
+                    last = e
+                    if "дневной" in str(e):
+                        _dead.add((model, n))
+                    else:
+                        minute_limited = True
+                    print(f"[gemini] ключ {n} / {model}: лимит, перехожу дальше", flush=True)
+                    continue
+                except LLMError as e:
+                    last = e
+                    print(f"[gemini] ключ {n} / {model}: {str(e)[:80]}", flush=True)
+                    break  # not a key problem (timeout, bad answer): try the next model
+                _key_calls[n] = _key_calls.get(n, 0) + 1
+                usage["model"], usage["key"] = model, n
+                return text, usage
+        if not minute_limited:
+            break
+        time.sleep(15)
     raise last or LLMError("Не задана модель Gemini")
 
 
@@ -318,13 +328,14 @@ def _call_gemini_model(model: str, key: str, system: str, turns: list[dict], cl:
         body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": contents, "generationConfig": config}
         return http_util.post_json(url, body, headers={"x-goog-api-key": key}, timeout=100)
 
+    quick = len(gemini_keys()) > 1
     try:
-        res = _backoff(lambda: send(True), f"Gemini {model}")
+        res = _backoff(lambda: send(True), f"Gemini {model}", quick)
     except LLMError as e:
         if "HTTP 400" not in str(e):
             raise
         # some models reject the schema or the thinking setting; plain JSON mode is enough
-        res = _backoff(lambda: send(False, False), f"Gemini {model}")
+        res = _backoff(lambda: send(False, False), f"Gemini {model}", quick)
     cand = (res.get("candidates") or [{}])[0]
     parts = (cand.get("content") or {}).get("parts") or []
     text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
