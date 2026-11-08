@@ -45,6 +45,9 @@ DEFAULT_CHECKLIST_FILE = ROOT / "config" / "checklist_v1.json"
 PROVIDER = env("PROVIDER", "auto").lower()
 
 GEMINI_API_KEY = env("GEMINI_API_KEY")
+# Several keys (comma-separated). Order = key number 1, 2, ... in logs. The single GEMINI_API_KEY is also used (added last if new).
+GEMINI_API_KEYS = env("GEMINI_API_KEYS")
+GEMINI_MAX_KEYS = int(env_float("GEMINI_MAX_KEYS", 0))  # 0 = all keys; N = only the first N (to keep the others in reserve)
 # One model or a comma-separated list. Free tier = only 20 requests per model per day, so the next model in the list
 # is used when one runs out. (gemini-3.5-flash / 3.6 / 3.7 / 3.8 were exhausted or very slow on 2026-11-08.)
 GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-3.5-flash-lite")

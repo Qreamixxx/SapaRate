@@ -86,22 +86,52 @@ def test_fallback_to_next_provider(monkeypatch):
     assert res["provider"] == "mock"
 
 
-def test_gemini_model_list_falls_back_on_daily_limit(monkeypatch):
+def test_keys_then_models_on_daily_limit(monkeypatch):
     from backend import llm, settings
     calls = []
 
-    def fake(model, system, turns, cl):
-        calls.append(model)
-        if model == "m1":
+    def fake(model, key, system, turns, cl):
+        calls.append((model, key))
+        if key in ("k1", "k2") and model == "m1":
+            raise llm.RateLimited("Gemini m1: дневной лимит исчерпан")
+        if model == "m1" and key == "k3":
             raise llm.RateLimited("Gemini m1: дневной лимит исчерпан")
         return "{}", {"input_tokens": 1, "output_tokens": 1}
 
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(settings, "GEMINI_API_KEYS", "k1,k2")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "k3")
+    monkeypatch.setattr(settings, "GEMINI_MAX_KEYS", 0)
     monkeypatch.setattr(settings, "GEMINI_MODEL", "m1, m2")
     monkeypatch.setattr(llm, "_call_gemini_model", fake)
-    llm._dead_models.clear()
+    llm._dead.clear()
     _, usage = llm.call_gemini("s", [{"role": "user", "content": "x"}], {})
-    assert usage["model"] == "m2" and calls == ["m1", "m2"]
+    # all three keys tried on m1 first, only then model m2 with key 1
+    assert calls == [("m1", "k1"), ("m1", "k2"), ("m1", "k3"), ("m2", "k1")]
+    assert usage["model"] == "m2" and usage["key"] == 1
     llm.call_gemini("s", [{"role": "user", "content": "x"}], {})
-    assert calls == ["m1", "m2", "m2"]  # m1 is not asked again today
-    llm._dead_models.clear()
+    assert calls[4:] == [("m2", "k1")]  # exhausted (m1, key) pairs are not asked again
+    llm._dead.clear()
+
+
+def test_next_key_same_model_and_max_keys(monkeypatch):
+    from backend import llm, settings
+    calls = []
+
+    def fake(model, key, system, turns, cl):
+        calls.append((model, key))
+        if key == "k1":
+            raise llm.RateLimited("дневной лимит")
+        return "{}", {"input_tokens": 0, "output_tokens": 0}
+
+    monkeypatch.setattr(settings, "GEMINI_API_KEYS", "k1,k2,k3")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "k3")      # duplicate is not added twice
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "m1,m2")
+    monkeypatch.setattr(llm, "_call_gemini_model", fake)
+    llm._dead.clear()
+    monkeypatch.setattr(settings, "GEMINI_MAX_KEYS", 0)
+    assert llm.gemini_keys() == ["k1", "k2", "k3"]
+    _, u = llm.call_gemini("s", [], {})
+    assert u["model"] == "m1" and u["key"] == 2 and calls == [("m1", "k1"), ("m1", "k2")]
+    monkeypatch.setattr(settings, "GEMINI_MAX_KEYS", 2)
+    assert llm.gemini_keys() == ["k1", "k2"]
+    llm._dead.clear()

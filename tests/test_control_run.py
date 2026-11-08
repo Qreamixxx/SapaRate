@@ -18,6 +18,7 @@ def test_retry_then_error_record(monkeypatch, tmp_path):
     monkeypatch.setattr(storage, "_conn", None)
     monkeypatch.setattr(settings, "PROVIDER", "gemini")
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(settings, "GEMINI_API_KEYS", "")
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
     recs = [{"conversation_id": f"c{i}", "channel": "agent chat", "language": "RU", "audio_url": None,
              "transcript": [{"timestamp": "00:00", "speaker": "client", "text": "?"},

@@ -248,36 +248,55 @@ def _gemini_schema(cl: dict) -> dict:
     return {"type": "OBJECT", "properties": {"items": {"type": "ARRAY", "items": item}}, "required": ["items"]}
 
 
-_dead_models: set[str] = set()  # models whose DAILY free limit is used up: skipped until restart
+_dead: set[tuple[str, int]] = set()  # (model, key number) whose DAILY free limit is used up: skipped until restart
+_key_calls: dict[int, int] = {}      # key number -> successful requests in this process (never the key itself)
 
 
 def gemini_models() -> list[str]:
-    """GEMINI_MODEL may be a comma-separated list: the next model is used when one runs out of its daily limit."""
+    """GEMINI_MODEL may be a comma-separated list; the best model goes first."""
     return [m.strip() for m in settings.GEMINI_MODEL.split(",") if m.strip()]
 
 
+def gemini_keys() -> list[str]:
+    """All keys in order (number = position + 1): GEMINI_API_KEYS, then GEMINI_API_KEY if it is not among them."""
+    keys = [k.strip() for k in (settings.GEMINI_API_KEYS or "").split(",") if k.strip()]
+    if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY not in keys:
+        keys.append(settings.GEMINI_API_KEY)
+    if settings.GEMINI_MAX_KEYS > 0:
+        keys = keys[:settings.GEMINI_MAX_KEYS]
+    return keys
+
+
 def call_gemini(system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
-    if not settings.GEMINI_API_KEY:
-        raise LLMError("Не задан GEMINI_API_KEY в .env")
-    models = gemini_models()
+    """For each model (best first): try every key; on a daily limit go to the next key, and only when all keys
+    are used up for this model go to the next model."""
+    keys = gemini_keys()
+    if not keys:
+        raise LLMError("Не задан GEMINI_API_KEY / GEMINI_API_KEYS в .env")
     last: Exception | None = None
-    for model in models:
-        if model in _dead_models and len(models) > 1:
-            continue
-        try:
-            text, usage = _call_gemini_model(model, system, turns, cl)
-            usage["model"] = model
+    for model in gemini_models():
+        for n, key in enumerate(keys, 1):
+            if (model, n) in _dead:
+                continue
+            try:
+                text, usage = _call_gemini_model(model, key, system, turns, cl)
+            except RateLimited as e:
+                last = e
+                if "дневной" in str(e):
+                    _dead.add((model, n))
+                print(f"[gemini] ключ {n} / {model}: лимит, перехожу дальше", flush=True)
+                continue
+            except LLMError as e:
+                last = e
+                print(f"[gemini] ключ {n} / {model}: {str(e)[:80]}", flush=True)
+                break  # not a key problem (timeout, bad answer): try the next model
+            _key_calls[n] = _key_calls.get(n, 0) + 1
+            usage["model"], usage["key"] = model, n
             return text, usage
-        except RateLimited as e:
-            last = e
-            if "дневной" in str(e):
-                _dead_models.add(model)
-        except LLMError as e:
-            last = e
     raise last or LLMError("Не задана модель Gemini")
 
 
-def _call_gemini_model(model: str, system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
+def _call_gemini_model(model: str, key: str, system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     contents = [{"role": "model" if t["role"] == "assistant" else "user", "parts": [{"text": t["content"]}]}
                 for t in turns]
@@ -289,7 +308,7 @@ def _call_gemini_model(model: str, system: str, turns: list[dict], cl: dict) -> 
         if use_thinking and settings.GEMINI_THINKING:
             config["thinkingConfig"] = {"thinkingLevel": settings.GEMINI_THINKING}
         body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": contents, "generationConfig": config}
-        return http_util.post_json(url, body, headers={"x-goog-api-key": settings.GEMINI_API_KEY}, timeout=100)
+        return http_util.post_json(url, body, headers={"x-goog-api-key": key}, timeout=100)
 
     try:
         res = _backoff(lambda: send(True), f"Gemini {model}")
@@ -334,7 +353,7 @@ def provider_chain() -> list[str]:
         chain = [p.strip() for p in settings.PROVIDER.split(",") if p.strip()]
         return chain or ["mock"]
     chain = []
-    if settings.GEMINI_API_KEY:
+    if gemini_keys():
         chain.append("gemini")
     if settings.OPENAI_API_KEY:
         chain.append("openai")
@@ -389,6 +408,7 @@ def _evaluate_with(provider: str, cl: dict, conv: dict, facts: dict) -> dict:
         usage["output_tokens"] += u["output_tokens"]
         usage["calls"] += 1
         used_model = u.get("model") or used_model
+        usage["key"] = u.get("key", usage.get("key"))
         try:
             items = normalize_items(cl, parse_json(text))
             errors = validate_items(cl, items, n)
