@@ -12,6 +12,7 @@ CODES = ["contact", "discovery", "identification", "consultation", "empathy", "d
 def compare(res_path, man_path="data/manual_check.json", show=True):
     res = {r["conversation_id"]: r for r in json.loads(Path(res_path).read_text("utf-8"))["results"]}
     man = json.loads(Path(man_path).read_text("utf-8"))
+    disputed = {tuple(x) for x in man.pop("_disputed", [])}  # doubtful hand labels are not counted
     ok = {c: 0 for c in CODES}
     n = {c: 0 for c in CODES}
     diffs = []
@@ -21,6 +22,8 @@ def compare(res_path, man_path="data/manual_check.json", show=True):
             continue
         got = {c["criterion_id"]: c["value"] for c in r["criteria"]}
         for c in CODES:
+            if (cid, c) in disputed:
+                continue
             n[c] += 1
             if got[c] == truth[c]:
                 ok[c] += 1
