@@ -10,6 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+for _s in (sys.stdout, sys.stderr):  # Windows consoles (cp1251) cannot print ✓/✗
+    _s.reconfigure(encoding="utf-8", errors="replace")
 
 from backend import exporter, service  # noqa: E402
 

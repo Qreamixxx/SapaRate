@@ -84,3 +84,24 @@ def test_fallback_to_next_provider(monkeypatch):
     monkeypatch.setitem(llm.CALLERS, "gemini", gemini_limited)
     res = llm.evaluate(CL, CONV, compute_facts(CONV, CL))
     assert res["provider"] == "mock"
+
+
+def test_gemini_model_list_falls_back_on_daily_limit(monkeypatch):
+    from backend import llm, settings
+    calls = []
+
+    def fake(model, system, turns, cl):
+        calls.append(model)
+        if model == "m1":
+            raise llm.RateLimited("Gemini m1: дневной лимит исчерпан")
+        return "{}", {"input_tokens": 1, "output_tokens": 1}
+
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "m1, m2")
+    monkeypatch.setattr(llm, "_call_gemini_model", fake)
+    llm._dead_models.clear()
+    _, usage = llm.call_gemini("s", [{"role": "user", "content": "x"}], {})
+    assert usage["model"] == "m2" and calls == ["m1", "m2"]
+    llm.call_gemini("s", [{"role": "user", "content": "x"}], {})
+    assert calls == ["m1", "m2", "m2"]  # m1 is not asked again today
+    llm._dead_models.clear()

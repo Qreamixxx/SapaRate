@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+for _s in (sys.stdout, sys.stderr):  # Windows consoles (cp1251) cannot print ✓/✗
+    _s.reconfigure(encoding="utf-8", errors="replace")
 
 from backend import service, settings, storage  # noqa: E402
 

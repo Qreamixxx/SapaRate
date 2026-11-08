@@ -218,7 +218,7 @@ def _backoff(fn, label: str):
             if e.status == 429 and "PerDay" in quota:  # daily limit: waiting will not help, switch provider now
                 raise RateLimited(f"{label}: дневной лимит исчерпан ({quota}), сброс в полночь по тихоокеанскому времени") from None
             retryable = e.status in (0, 429, 500, 502, 503, 504)  # 0 = timeout / no connection
-            if retryable and attempt < len(waits):
+            if retryable and attempt < (1 if e.status == 0 else len(waits)):
                 try:
                     wait = float(e.headers.get("retry-after") or waits[attempt])
                 except ValueError:
@@ -248,10 +248,37 @@ def _gemini_schema(cl: dict) -> dict:
     return {"type": "OBJECT", "properties": {"items": {"type": "ARRAY", "items": item}}, "required": ["items"]}
 
 
+_dead_models: set[str] = set()  # models whose DAILY free limit is used up: skipped until restart
+
+
+def gemini_models() -> list[str]:
+    """GEMINI_MODEL may be a comma-separated list: the next model is used when one runs out of its daily limit."""
+    return [m.strip() for m in settings.GEMINI_MODEL.split(",") if m.strip()]
+
+
 def call_gemini(system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
     if not settings.GEMINI_API_KEY:
         raise LLMError("Не задан GEMINI_API_KEY в .env")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent"
+    models = gemini_models()
+    last: Exception | None = None
+    for model in models:
+        if model in _dead_models and len(models) > 1:
+            continue
+        try:
+            text, usage = _call_gemini_model(model, system, turns, cl)
+            usage["model"] = model
+            return text, usage
+        except RateLimited as e:
+            last = e
+            if "дневной" in str(e):
+                _dead_models.add(model)
+        except LLMError as e:
+            last = e
+    raise last or LLMError("Не задана модель Gemini")
+
+
+def _call_gemini_model(model: str, system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     contents = [{"role": "model" if t["role"] == "assistant" else "user", "parts": [{"text": t["content"]}]}
                 for t in turns]
 
@@ -265,17 +292,17 @@ def call_gemini(system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
         return http_util.post_json(url, body, headers={"x-goog-api-key": settings.GEMINI_API_KEY}, timeout=100)
 
     try:
-        res = _backoff(lambda: send(True), "Gemini")
+        res = _backoff(lambda: send(True), f"Gemini {model}")
     except LLMError as e:
         if "HTTP 400" not in str(e):
             raise
         # some models reject the schema or the thinking setting; plain JSON mode is enough
-        res = _backoff(lambda: send(False, False), "Gemini")
+        res = _backoff(lambda: send(False, False), f"Gemini {model}")
     cand = (res.get("candidates") or [{}])[0]
     parts = (cand.get("content") or {}).get("parts") or []
     text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
     if not text:
-        raise LLMError(f"Gemini вернул пустой ответ (finishReason={cand.get('finishReason')})")
+        raise LLMError(f"Gemini {model} вернул пустой ответ (finishReason={cand.get('finishReason')})")
     u = res.get("usageMetadata") or {}
     usage = {"input_tokens": u.get("promptTokenCount", 0),
              "output_tokens": u.get("candidatesTokenCount", 0) + u.get("thoughtsTokenCount", 0)}
@@ -354,12 +381,14 @@ def _evaluate_with(provider: str, cl: dict, conv: dict, facts: dict) -> dict:
     system, n = build_system(cl), len(conv["transcript"])
     turns = [{"role": "user", "content": build_user(conv, facts)}]
     usage = {"input_tokens": 0, "output_tokens": 0, "calls": 0}
+    used_model = None
     items, errors = [], []
     for attempt in range(2):
         text, u = caller(system, turns, cl)
         usage["input_tokens"] += u["input_tokens"]
         usage["output_tokens"] += u["output_tokens"]
         usage["calls"] += 1
+        used_model = u.get("model") or used_model
         try:
             items = normalize_items(cl, parse_json(text))
             errors = validate_items(cl, items, n)
@@ -376,7 +405,7 @@ def _evaluate_with(provider: str, cl: dict, conv: dict, facts: dict) -> dict:
         errors = validate_items(cl, items, n)
     if errors:
         raise LLMError("Модель вернула некорректную оценку: " + "; ".join(errors[:5]))
-    return {"items": items, "usage": usage, "provider": provider, "model": MODELS[provider]()}
+    return {"items": items, "usage": usage, "provider": provider, "model": used_model or MODELS[provider]()}
 
 
 def evaluate(cl: dict, conv: dict, facts: dict) -> dict:

@@ -86,12 +86,18 @@ def latest_eval(conversation_id: str, checklist_id: str | None = None) -> dict |
     return None
 
 
-def build(convs: list[dict], errors: dict[str, str] | None = None, checklist_id: str | None = None) -> dict:
-    errors = errors or {}
+def build(convs: list[dict], errors: dict[str, str] | None = None, checklist_id: str | None = None,
+          evals: dict[str, dict] | None = None) -> dict:
+    """errors: conversation_id -> reason (always written as status=error);
+    evals: conversation_id -> evaluation to use (default: the newest real evaluation)."""
+    errors, evals = errors or {}, evals or {}
     results, models = [], []
     for conv in convs:
         cid = conv["conversation_id"]
-        ev = latest_eval(cid, checklist_id)
+        if cid in errors:
+            results.append(record_error(cid, errors[cid]))
+            continue
+        ev = evals.get(cid) or latest_eval(cid, checklist_id)
         if ev is None:
             results.append(record_error(cid, errors.get(cid, "диалог не оценён")))
             continue
