@@ -78,7 +78,7 @@ class EvaluationView extends HTMLElement {
     const c = this.state.conv;
     const canPlay = c.is_call && t.audio_sec !== null && t.audio_sec !== undefined;
     return `<div class="msg sp-${esc(t.speaker)}" id="m-${t.id}" data-id="${t.id}">
-      <div class="msg-head"><span class="mid">#${t.id}</span><span class="who">${esc(SPEAKER[t.speaker] || t.speaker)}</span>
+      <div class="msg-head"><span class="mid">#${t.id + 1}</span><span class="who">${esc(SPEAKER[t.speaker] || t.speaker)}</span>
         <span>${esc(msgTime(c, t))}</span>
         ${canPlay ? `<button class="play" data-id="${t.id}" title="Воспроизвести с ${clock(t.audio_sec)}">${icon('play')}</button>` : ''}</div>
       <div class="bubble">${esc(t.text)}</div></div>`;
@@ -196,7 +196,7 @@ class EvaluationView extends HTMLElement {
     const evidence = (i.evidence_ids || []).map(id => {
       const t = conv.transcript[id];
       if (!t) return '';
-      return `<button class="ev" data-ids="${id}"><span class="ev-id">#${id}</span>
+      return `<button class="ev" data-ids="${id}"><span class="ev-id">#${id + 1}</span>
         <span class="ev-who">${esc(SPEAKER[t.speaker] || t.speaker)} ${esc(msgTime(conv, t))}</span>
         <span class="ev-text">${esc(t.text)}</span></button>`;
     }).join('');
@@ -214,7 +214,7 @@ class EvaluationView extends HTMLElement {
         : `<p class="crit-expl">${this.linkify(i.explanation)}</p>`}
       ${evidence || rng ? `<div class="evidence">
         ${evidence ? `<div class="small muted" style="font-weight:700">${missed ? 'Где ожидалось действие / ошибка:' : 'Доказательство:'}</div>${evidence}` : ''}
-        ${rng ? `<button class="range-btn" data-range="${rng[0]}-${rng[1]}">Проверен участок #${rng[0]}–#${rng[1]}</button>` : ''}
+        ${rng ? `<button class="range-btn" data-range="${rng[0]}-${rng[1]}">Проверен участок #${rng[0] + 1}–#${rng[1] + 1}</button>` : ''}
       </div>` : ''}
       ${o ? `<div class="override"><div class="ov-line">
           <span>Исходно: ${esc(answerText(i.type, o.original_answer, o.original_value))}${o.original_points !== null && o.original_points !== undefined ? ` · ${num(o.original_points)}` : ''}</span>
@@ -229,7 +229,7 @@ class EvaluationView extends HTMLElement {
 
   linkify(text) {
     return esc(text || '').replace(/\[(\d+(?:\s*[,;]\s*\d+)*)\]/g, (_, list) =>
-      list.split(/\s*[,;]\s*/).map(n => `<button class="ref" data-ids="${n}">[${n}]</button>`).join(' '));
+      list.split(/\s*[,;]\s*/).map(n => `<button class="ref" data-ids="${n}">[${+n + 1}]</button>`).join(' '));
   }
 
   bindLeft() {

@@ -1,6 +1,6 @@
 // <cqa-checklist-editor> — edit criteria (text, weight, type, N/A, scale), every save = new version,
 // then re-apply the new version to a dataset.
-import { api } from '../api.js';
+import { api, startBatchConfirmed } from '../api.js';
 import { TYPE_LABEL, esc, icon, modal, num, toast } from '../ui.js';
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -273,7 +273,8 @@ class ChecklistEditor extends HTMLElement {
     const s = this.state;
     const group_id = this.querySelector('#applyGroup')?.value;
     try {
-      const job = await api.batch({ checklist_id: s.saved.checklist_id, version: s.saved.version, group_id, only_missing: true, ...(ids ? { conversation_ids: ids } : {}) });
+      const job = await startBatchConfirmed({ checklist_id: s.saved.checklist_id, version: s.saved.version, group_id, only_missing: true, ...(ids ? { conversation_ids: ids } : {}) });
+      if (!job) return; // cancelled in the confirmation window
       s.job = job;
       this.renderSide();
       if (!job.total) return toast('Все диалоги набора уже оценены этой версией', 'ok');

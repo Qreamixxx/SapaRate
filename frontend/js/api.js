@@ -1,3 +1,5 @@
+import { modal } from './ui.js';
+
 // All requests to the backend go through here. For Dynamics 365 embedding set window.CQA_API_BASE.
 const BASE = () => (window.CQA_API_BASE || '').replace(/\/$/, '');
 
@@ -46,3 +48,14 @@ export const api = {
   createAppeal: body => req('POST', '/api/appeals', body),
   decide: (id, body) => req('POST', `/api/appeals/${encodeURIComponent(id)}/decision`, body),
 };
+
+// Starts a batch; more than 3 model requests need a confirmation. Returns the job, or null if the user cancelled.
+export async function startBatchConfirmed(body) {
+  const plan = await api.batch({ ...body, dry_run: true });
+  if (!plan.total) return { total: 0, finished: true, done: 0, failed: 0, errors: [] };
+  if (plan.total > 3) {
+    const ok = await modal({ title: 'Подтвердите запуск', text: `Будет <b>${plan.total}</b> запросов к модели. Продолжить?`, fields: [], okLabel: 'Продолжить' });
+    if (!ok) return null;
+  }
+  return api.batch(body);
+}

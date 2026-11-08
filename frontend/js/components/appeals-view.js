@@ -1,6 +1,6 @@
 // <cqa-appeals-view> — reviewer screen: disputed score, comment, dialogue fragment, decision + reason.
 import { api } from '../api.js';
-import { SPEAKER, answerChip, answerText, dateTime, emit, esc, icon, msgTime, num, scoreColor, toast } from '../ui.js';
+import { SPEAKER, answerChip, answerText, dateTime, emit, esc, icon, msgTime, num, scoreColor, shiftRefs, toast } from '../ui.js';
 
 class AppealsView extends HTMLElement {
   connectedCallback() {
@@ -41,7 +41,7 @@ class AppealsView extends HTMLElement {
     const keyIds = new Set([...(d.evidence_ids || [])]);
     const conv = { is_call: a.is_call };
     const fragment = (a.fragment || []).map(t => `<div class="frag ${keyIds.has(t.id) ? 'key' : ''}">
-        <div class="fh">#${t.id} · ${esc(SPEAKER[t.speaker] || t.speaker)} · ${esc(msgTime(conv, t))}</div>${esc(t.text)}</div>`).join('')
+        <div class="fh">#${t.id + 1} · ${esc(SPEAKER[t.speaker] || t.speaker)} · ${esc(msgTime(conv, t))}</div>${esc(t.text)}</div>`).join('')
       || '<div class="muted small">Модель не указала реплики</div>';
 
     return `<article class="card appeal" data-ap="${a.appeal_id}">
@@ -59,7 +59,7 @@ class AppealsView extends HTMLElement {
         <div class="stack">
           <div class="box"><h4>Оспариваемая оценка</h4>
             <div class="row">${answerChip(disputedRow)}${d.points !== null && d.points !== undefined ? `<b>${num(d.points)} / ${num(d.max_points)}</b>` : '<span class="muted">без баллов</span>'}</div>
-            <div class="small" style="margin-top:8px;color:var(--ink-2)">${esc(d.explanation)}</div></div>
+            <div class="small" style="margin-top:8px;color:var(--ink-2)">${esc(shiftRefs(d.explanation))}</div></div>
           <div class="box"><h4>Комментарий апелляции</h4><div>${esc(a.comment)}</div></div>
           ${a.criterion ? `<div class="box"><h4>Правило чек-листа</h4><div class="small">${esc(a.criterion.yes_rule || '')}
             ${a.criterion.type === 'scale' ? `<ul style="margin:6px 0 0;padding-left:18px">${a.criterion.scale.map(st => `<li><b>${num(st.value)}</b> — ${esc(st.label)}</li>`).join('')}</ul>` : ''}

@@ -138,7 +138,7 @@ _jobs_lock = threading.Lock()
 
 
 def start_batch(checklist_id: str, version: int | None, group_id: str | None,
-                conversation_ids: list[str] | None, only_missing: bool) -> dict:
+                conversation_ids: list[str] | None, only_missing: bool, dry_run: bool = False) -> dict:
     cl = get_checklist(checklist_id, version)
     if conversation_ids is not None and len(conversation_ids) == 0:
         raise ValueError("Не выбрано ни одного диалога")
@@ -149,6 +149,8 @@ def start_batch(checklist_id: str, version: int | None, group_id: str | None,
         raise ValueError("Нет таких диалогов: " + ", ".join(unknown[:5]))
     if only_missing:
         ids = [i for i in ids if not storage.has_evaluation(i, cl["checklist_id"], cl["version"])]
+    if dry_run:
+        return {"dry_run": True, "total": len(ids)}
     job = {"job_id": storage.new_id("job"), "total": len(ids), "done": 0, "failed": 0, "errors": [],
            "finished": len(ids) == 0, "checklist_id": cl["checklist_id"], "checklist_version": cl["version"],
            "started_at": storage.now()}

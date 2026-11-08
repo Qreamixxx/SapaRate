@@ -114,3 +114,11 @@ def test_endpoint_functions(env):
     assert job["total"] == 1
     wait(job)
     assert (settings.ROOT / "frontend" / "index.html").exists()
+
+
+def test_batch_dry_run_counts_without_calling_model(env):
+    r = service.start_batch("chat-quality", 1, "G", ["d0", "d1", "d2"], False, dry_run=True)
+    assert r == {"dry_run": True, "total": 3}
+    assert env == []                                   # nothing evaluated
+    wait(service.start_batch("chat-quality", 1, "G", ["d0"], False))
+    assert service.start_batch("chat-quality", 1, "G", None, True, dry_run=True)["total"] == 3   # only missing

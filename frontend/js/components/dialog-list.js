@@ -1,5 +1,5 @@
 // <cqa-dialog-list> — datasets, filters, batch evaluation and the list of dialogues.
-import { api } from '../api.js';
+import { api, startBatchConfirmed } from '../api.js';
 import { dateTime, esc, icon, num, scoreColor, store, toast } from '../ui.js';
 
 class DialogList extends HTMLElement {
@@ -220,7 +220,8 @@ class DialogList extends HTMLElement {
     const ids = selectedIds || this.filtered().map(c => c.conversation_id);
     if (!ids.length) return toast(selectedIds ? 'Ничего не выбрано' : 'Нет диалогов в списке', 'bad');
     try {
-      const job = await api.batch({ checklist_id, version: +v, conversation_ids: ids, only_missing: onlyMissing });
+      const job = await startBatchConfirmed({ checklist_id, version: +v, conversation_ids: ids, only_missing: onlyMissing });
+      if (!job) return; // cancelled in the confirmation window
       if (!job.total) return toast('Все показанные диалоги уже оценены этой версией чек-листа', 'ok');
       this.state.job = job;
       this.render();

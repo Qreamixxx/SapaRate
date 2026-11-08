@@ -119,6 +119,9 @@ export function modal({ title, text = '', fields = [], okLabel = 'Отправи
   });
 }
 
+// Replies are stored 0-based, shown 1-based (like evidence_turns in results.json): [10] -> [11] in a text.
+export const shiftRefs = text => String(text ?? '').replace(/\[(\d+)\]/g, (_, n) => `[${+n + 1}]`);
+
 export const store = {
   get(key, fallback) { try { const v = localStorage.getItem('cqa:' + key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem('cqa:' + key, JSON.stringify(value)); } catch { /* storage unavailable */ } },

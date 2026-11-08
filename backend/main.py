@@ -57,6 +57,7 @@ class BatchReq(BaseModel):
     group_id: Optional[str] = None
     conversation_ids: Optional[list[str]] = None
     only_missing: bool = False
+    dry_run: bool = False   # only count how many model requests the batch would make
 
 
 class AppealReq(BaseModel):
@@ -146,7 +147,7 @@ def evaluation(evaluation_id: str):
 @app.post("/api/batches")
 def batch(body: BatchReq):
     return service.start_batch(body.checklist_id, body.version, body.group_id, body.conversation_ids,
-                               body.only_missing)
+                               body.only_missing, body.dry_run)
 
 
 @app.get("/api/batches/{job_id}")
