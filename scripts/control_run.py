@@ -75,6 +75,7 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=None, help="куда писать (по умолчанию results/prod/results.json)")
     ap.add_argument("--expect-count", type=int, default=None)
     ap.add_argument("--limit", type=int, default=None, help="взять только первые N диалогов (для репетиции)")
+    ap.add_argument("--ids", default=None, help="только эти conversation_id через запятую (для проверок)")
     ap.add_argument("--fresh", action="store_true", help="оценить заново, даже если уже оценено (репетиция)")
     ap.add_argument("--model", default=None, help="название модели Gemini (иначе GEMINI_MODEL из .env)")
     ap.add_argument("--checklist", default=None)
@@ -102,6 +103,9 @@ def main(argv=None) -> int:
             print(f"✗ API не ответил: {e}\n  Сохраните ответ в файл и запустите с --file <файл>")
             return 2
     convs = storage.list_conversations(a.group_id)
+    if a.ids:
+        want = [x.strip() for x in a.ids.split(",") if x.strip()]
+        convs = [c for c in convs if c["conversation_id"] in want]
     if a.limit:
         convs = convs[:a.limit]
     ids = [c["conversation_id"] for c in convs]
