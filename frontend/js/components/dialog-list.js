@@ -1,6 +1,6 @@
 // <cqa-dialog-list> — datasets, filters, batch evaluation and the list of dialogues.
 import { api, startBatchConfirmed } from '../api.js';
-import { dateTime, esc, icon, num, scoreColor, store, toast } from '../ui.js';
+import { shiftRefs, dateTime, esc, icon, num, scoreColor, store, toast } from '../ui.js';
 
 class DialogList extends HTMLElement {
   connectedCallback() {
@@ -39,8 +39,47 @@ class DialogList extends HTMLElement {
       (!q || c.conversation_id.toLowerCase().includes(q) || (c.preview || '').toLowerCase().includes(q)));
   }
 
+  // "Needs attention": gross errors first, then the lowest totals (from saved evaluations of the shown set)
+  async loadAttention() {
+    const s = this.state;
+    const evald = s.items.filter(c => c.latest && c.latest.total !== null);
+    const bad = evald.filter(c => c.latest.critical_error || c.latest.total < 70)
+      .sort((a, b) => (Number(b.latest.critical_error) - Number(a.latest.critical_error)) || (a.latest.total - b.latest.total)).slice(0, 5);
+    const cards = await Promise.all(bad.map(async c => {
+      let reason = '';
+      try {
+        const ev = await api.evaluation(c.latest.evaluation_id);
+        const items = ev.result.items;
+        if (c.latest.critical_error) {
+          const v = items.find(i => i.status === 'violation');
+          const t = shiftRefs(((v && v.explanation) || '').replace(/\s+/g, ' ').trim());
+          reason = t.length > 90 ? t.slice(0, 87) + '…' : t;
+        } else {
+          const sc = items.filter(i => i.status === 'scored' && i.max_points > 0 && i.points < i.max_points - 0.0001);
+          if (sc.length) reason = sc.reduce((m, i) => (i.points / i.max_points < m.points / m.max_points ? i : m), sc[0]).title;
+        }
+      } catch { /* the card is still shown without a reason */ }
+      return { id: c.conversation_id, total: c.latest.total, critical: !!c.latest.critical_error, reason };
+    }));
+    s.attention = { cards, evaluated: evald.length };
+    this.render();
+  }
+
+  attentionBlock() {
+    const a = this.state.attention;
+    if (!a || !a.evaluated) return '';
+    if (!a.cards.length) return '<div class="attn-ok">Все диалоги без замечаний</div>';
+    return `<div class="attn"><div class="attn-t">Требуют внимания</div><div class="attn-row">${a.cards.map(c => `
+      <a class="attn-card ${c.critical ? 'crit' : ''}" href="#/dialog/${encodeURIComponent(c.id)}" data-attn="${esc(c.id)}">
+        <div class="attn-top"><span class="mono">${esc(c.id)}</span><span class="attn-score" style="color:${scoreColor(c.total)}">${num(c.total, 0)}</span></div>
+        <div class="attn-tag">${c.critical ? 'Грубая ошибка' : 'Низкий итог'}</div>
+        <div class="attn-reason">${esc(c.reason || '—')}</div></a>`).join('')}</div></div>`;
+  }
+
   render() {
     const s = this.state;
+    const attnKey = `${s.group}|${s.items.length}|${s.items.map(c => (c.latest && c.latest.evaluation_id) || '').join(',')}`;
+    if (this._attnKey !== attnKey) { this._attnKey = attnKey; this.loadAttention(); }
     const rows = this.filtered();
     const scored = s.items.filter(c => c.latest && c.latest.total !== null);
     const avg = scored.length ? scored.reduce((a, c) => a + c.latest.total, 0) / scored.length : null;
@@ -101,6 +140,8 @@ class DialogList extends HTMLElement {
         </div>
       </div>
       </div>
+
+      ${this.attentionBlock()}
 
       <div class="card">
         <div class="toolbar">

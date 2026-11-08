@@ -2,7 +2,7 @@
 // explanations and evidence, transcript with jump-to-message and audio seek for calls, appeal button.
 import { api } from '../api.js';
 import {
-  SPEAKER, TYPE_LABEL, answerChip, answerText, clock, dateTime, emit, esc, icon, modal, msgTime, num,
+  SPEAKER, TYPE_LABEL, shiftRefs, answerChip, answerText, clock, dateTime, emit, esc, icon, modal, msgTime, num,
   rowStatusClass, scoreColor, store, toast,
 } from '../ui.js';
 
@@ -164,6 +164,7 @@ class EvaluationView extends HTMLElement {
         <div class="total-line"><span class="big">Итоговая оценка</span>
           ${changed ? `<span class="muted">исходно ${num(o.total)}</span>${delta !== null ? `<span class="delta ${delta >= 0 ? 'up' : 'down'}">${delta >= 0 ? '+' : ''}${num(delta)} после апелляций</span>` : ''}` : ''}
           ${prev ? `<span class="muted small">· с чек-листом v${prev.checklist_version} было ${num(prev.result.total)}</span>` : ''}</div>
+        <div class="verdict ${r.critical_error ? 'bad' : ''}" id="verdict">${esc(this.verdict(r))}</div>
         ${r.critical_error
           ? `<div class="alert bad">${icon('alert')}<div>Выявлена грубая ошибка (${r.critical_items.map(esc).join(', ')}).${r.total === 0 && r.total_before_critical ? ` Итог обнулён, без неё было бы ${num(r.total_before_critical)}.` : ' Отмечена отдельно от итога.'}</div></div>`
           : '<div class="alert ok">Грубых ошибок не выявлено</div>'}
@@ -178,6 +179,19 @@ class EvaluationView extends HTMLElement {
           <span>Время: <b>${num((u.latency_ms || 0) / 1000, 1)} с</b></span>
           <span>${dateTime(ev.created_at)}</span></div>
       </div></div>`;
+  }
+
+  // one plain sentence: gross error / the weakest criterion / no remarks
+  verdict(r) {
+    if (r.critical_error) {
+      const v = r.items.find(i => i.status === 'violation');
+      const t = shiftRefs(((v && v.explanation) || '').replace(/\s+/g, ' ').trim());
+      return 'Грубая ошибка: ' + (t.length > 140 ? t.slice(0, 137) + '…' : t || (v ? v.title : ''));
+    }
+    const scored = r.items.filter(i => i.status === 'scored' && i.max_points > 0 && i.points < i.max_points - 0.0001);
+    if (!scored.length) return 'Без замечаний';
+    const w = scored.reduce((m, i) => (i.points / i.max_points < m.points / m.max_points ? i : m), scored[0]);
+    return `Слабее всего: ${w.title}`;
   }
 
   crit(i) {
@@ -203,13 +217,15 @@ class EvaluationView extends HTMLElement {
     const rng = i.checked_range;
     const o = i.override;
 
-    return `<article class="card crit ${rowStatusClass(i)}" data-cid="${esc(i.criterion_id)}">
+    const good = !missed && !i.override && !pending;
+    const body = (inner) => good ? `<div class="crit-body" hidden>${inner}</div>` : inner;
+    return `<article class="card crit ${rowStatusClass(i)}${good ? ' compact' : ''}" data-cid="${esc(i.criterion_id)}">
       <div class="crit-head">
         <div><div class="crit-title"><span class="cid">${esc(i.criterion_id)}</span>${esc(i.title)}</div>
           <div class="crit-meta">${meta}</div></div>
-        <div class="crit-right">${pts}${answerChip(i)}</div>
+        <div class="crit-right">${pts}${answerChip(i)}${good ? '<button type="button" class="linkbtn" data-toggle>Подробнее ▾</button>' : ''}</div>
       </div>
-      ${i.status === 'na'
+      ${body(`${i.status === 'na'
         ? `<div class="na-reason"><b>Почему N/A:</b> ${this.linkify(i.explanation)}</div>`
         : `<p class="crit-expl">${this.linkify(i.explanation)}</p>`}
       ${evidence || rng ? `<div class="evidence">
@@ -224,7 +240,7 @@ class EvaluationView extends HTMLElement {
       <div class="crit-foot">
         ${pending ? `<span class="pending-tag"><span class="spinner" style="width:11px;height:11px"></span> Апелляция на рассмотрении</span>`
           : `<button class="btn sm" data-appeal="${esc(i.criterion_id)}">${icon('flag')} Оспорить</button>`}
-      </div></article>`;
+      </div>`)}</article>`;
   }
 
   linkify(text) {
@@ -235,6 +251,13 @@ class EvaluationView extends HTMLElement {
   bindLeft() {
     const left = this.querySelector('#left');
     left.addEventListener('click', e => {
+      const tg = e.target.closest('[data-toggle]');
+      if (tg) {
+        const body = tg.closest('.crit').querySelector('.crit-body');
+        body.hidden = !body.hidden;
+        tg.textContent = body.hidden ? 'Подробнее ▾' : 'Свернуть ▴';
+        return;
+      }
       const ids = e.target.closest('[data-ids]');
       if (ids) return this.highlight(ids.dataset.ids.split(',').map(Number), true);
       const rng = e.target.closest('[data-range]');
