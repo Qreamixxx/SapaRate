@@ -365,3 +365,12 @@ table.list td { padding-top: 11px; padding-bottom: 11px; }
 :root[data-theme="dark"] .nav-links a.active { color: var(--accent); }
 :root[data-theme="dark"] .pop { box-shadow: none; }
 .pop { color: var(--ink); }
+
+.ed-row { grid-template-columns: 90px 1fr 170px 130px 130px; }
+.wrow { display: flex; gap: 6px; align-items: center; }
+.wrow .input { min-width: 0; width: 100%; }
+.lockbtn { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 6px; width: 32px; height: 34px; padding: 0; cursor: pointer; display: inline-grid; place-items: center; flex-shrink: 0; }
+.lockbtn.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.lockbtn:hover { border-color: var(--muted); }
+#wmode.seg button { flex: 1; }
+@media (max-width: 860px) { .ed-row { grid-template-columns: 1fr; } }

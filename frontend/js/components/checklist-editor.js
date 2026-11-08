@@ -105,7 +105,7 @@ class ChecklistEditor extends HTMLElement {
         <label class="field"><span>Секция</span><select class="select" data-path="criteria.${i}.section">${sections}</select></label>
         <label class="field"><span>Тип ответа</span><select class="select" data-path="criteria.${i}.type" data-rerender>
           ${Object.entries(TYPE_LABEL).map(([k, l]) => `<option value="${k}" ${c.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="field"><span>Вес</span><input class="input" type="number" min="0" step="any" data-path="criteria.${i}.weight" data-num value="${c.weight}" ${isCrit ? 'disabled title="Грубая ошибка без веса"' : ''}></label>
+        <label class="field"><span>Вес</span><span class="wrow"><input class="input" type="number" min="0" step="any" data-path="criteria.${i}.weight" data-num value="${c.weight}" ${isCrit ? 'disabled title="Грубая ошибка без веса"' : ''}>${isCrit || this.wmode() !== 'fixed' ? '' : this.lockBtn(i, c)}</span></label>
       </div>
       <label class="field" style="margin-bottom:10px"><span>${isCrit ? 'Что считается грубой ошибкой' : c.type === 'scale' ? 'Что оценивается (правило для модели, необязательно)' : 'Когда ответ «Да» (правило для модели)'}</span>
         <textarea class="textarea" rows="2" data-path="criteria.${i}.yes_rule">${esc(c.yes_rule || '')}</textarea></label>
@@ -120,6 +120,50 @@ class ChecklistEditor extends HTMLElement {
         <textarea class="textarea" rows="2" data-path="criteria.${i}.na_rule">${esc(c.na_rule || '')}</textarea></label>` : ''}
       <label class="field"><span>Примечание (необязательно)</span><textarea class="textarea" rows="1" data-path="criteria.${i}.note">${esc(c.note || '')}</textarea></label>
     </div>`;
+  }
+
+  // ---------- weights: mode "sum is always 100" (default) or "free" ----------
+  wmode() { try { return localStorage.getItem('cqa:wmode') === 'free' ? 'free' : 'fixed'; } catch { return 'fixed'; } }
+
+  setWmode(m) {
+    try { localStorage.setItem('cqa:wmode', m); } catch { /* storage unavailable */ }
+    this.state.wmsg = '';
+    this.rerenderKeepScroll();
+  }
+
+  isLocked(c) { return !!this.state.locked && this.state.locked.has(c.id); }
+
+  lockBtn(i, c) {
+    const on = this.isLocked(c);
+    const svg = on
+      ? '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>';
+    return `<button type="button" class="lockbtn ${on ? 'on' : ''}" data-action="toggle-lock" data-i="${i}" title="${on ? 'Вес закреплён: клик снимает замок' : 'Вес пересчитывается автоматически: клик закрепит его'}">${svg}</button>`;
+  }
+
+  // The edited weight is locked; the unlocked ones are scaled so that the sum is exactly 100.00.
+  rebalance(idx) {
+    const s = this.state, cr = s.draft.criteria;
+    s.locked = s.locked || new Set();
+    s.locked.add(cr[idx].id);
+    const real = cr.filter(c => c.type !== 'critical');
+    const locked = real.filter(c => s.locked.has(c.id));
+    const free = real.filter(c => !s.locked.has(c.id));
+    const L = locked.reduce((a, c) => a + (+c.weight || 0), 0);
+    s.wmsg = '';
+    if (L > 100.0000001) {
+      s.wmsg = `Закреплённые веса дают ${num(L)}, это больше 100. Пересчёт не выполнен: снимите замок у одного из критериев или уменьшите вес.`;
+    } else if (!free.length) {
+      s.wmsg = 'Все веса закреплены, пересчитывать нечего. Снимите замок у одного из критериев, чтобы сумма снова была 100.';
+    } else {
+      const rest = 100 - L, S = free.reduce((a, c) => a + (+c.weight || 0), 0);
+      const r = free.map(c => Math.round((S > 0 ? (+c.weight || 0) * rest / S : rest / free.length) * 100) / 100);
+      const diff = Math.round((rest - r.reduce((a, b) => a + b, 0)) * 100) / 100;
+      const big = r.indexOf(Math.max(...r));
+      r[big] = Math.round((r[big] + diff) * 100) / 100;
+      free.forEach((c, k) => { c.weight = r[k]; });
+    }
+    this.rerenderKeepScroll();
   }
 
   renderSide() {
@@ -150,6 +194,10 @@ class ChecklistEditor extends HTMLElement {
       </div>` : ''}
       <div class="card card-pad stack">
         <div class="row"><h3 class="grow">Веса</h3><span class="small muted" id="wSum">сумма ${num(sum)}</span></div>
+        <div class="seg" id="wmode"><button type="button" data-action="wmode-fixed" class="${this.wmode() === 'fixed' ? 'on' : ''}">Сумма всегда 100</button>
+          <button type="button" data-action="wmode-free" class="${this.wmode() === 'free' ? 'on' : ''}">Свободный</button></div>
+        <div class="small muted">${this.wmode() === 'fixed' ? 'Изменили вес — он закрепляется (замок), остальные пересчитываются так, чтобы сумма была 100.' : 'Сумма весов любая; итог всё равно считается из 100.'}</div>
+        ${s.wmsg ? `<div class="alert bad small" id="wMsg">${esc(s.wmsg)}</div>` : ''}
         ${Math.abs(sum - 100) > 0.001 ? `<div class="alert info small" id="wNote">Сумма весов: ${num(sum)}. Итог всё равно считается из 100: набранные баллы делятся на максимум.</div>
         <button class="btn sm" data-action="norm100" id="norm100">Привести к 100</button>` : ''}
         <div class="weights">${weighted.map(c => `<div class="w"><span class="mono">${esc(c.id)}</span>
@@ -200,6 +248,8 @@ class ChecklistEditor extends HTMLElement {
 
   onChange(e) {
     const el = e.target.closest('[data-path]');
+    const wm = el && el.dataset.path.match(/^criteria\.(\d+)\.weight$/);
+    if (wm && this.wmode() === 'fixed') { this.setPath(el.dataset.path, this.readInput(el)); this.rebalance(+wm[1]); return; }
     if (!el || !(el.type === 'checkbox' || el.tagName === 'SELECT')) return;
     const value = this.readInput(el);
     this.setPath(el.dataset.path, value);
@@ -233,6 +283,16 @@ class ChecklistEditor extends HTMLElement {
         return;
       }
       case 'del-crit': if (confirmDelete(d.criteria[i])) { d.criteria.splice(i, 1); this.rerenderKeepScroll(); } return;
+      case 'wmode-fixed': return this.setWmode('fixed');
+      case 'wmode-free': return this.setWmode('free');
+      case 'toggle-lock': {
+        const c = d.criteria[i];
+        this.state.locked = this.state.locked || new Set();
+        if (this.state.locked.has(c.id)) this.state.locked.delete(c.id); else this.state.locked.add(c.id);
+        this.state.wmsg = '';
+        this.rerenderKeepScroll();
+        return;
+      }
       case 'norm100': {
         const ws = d.criteria.filter(c => c.type !== 'critical' && +c.weight > 0);
         const tot = ws.reduce((a, c) => a + (+c.weight), 0);
