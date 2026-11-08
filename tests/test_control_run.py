@@ -54,3 +54,30 @@ def test_retry_then_error_record(monkeypatch, tmp_path):
     assert attempts["c1"] == 2 and attempts["c2"] == 2
     assert doc["results"][1]["criteria"][0]["evidence_turns"] == [2]
     assert doc["model"]["name"] == "fake"
+
+
+def test_dry_run_makes_no_model_calls_and_keeps_real_db(monkeypatch, tmp_path):
+    import json as _j
+    from backend import llm
+    real_db = tmp_path / "real.db"
+    monkeypatch.setattr(settings, "DB_PATH", real_db)
+    monkeypatch.setattr(storage, "_conn", None)
+    monkeypatch.setattr(settings, "PROVIDER", "auto")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(settings, "GEMINI_API_KEYS", "")
+
+    def boom(*a, **k):
+        raise AssertionError("model must not be called")
+
+    monkeypatch.setattr(llm, "call_gemini", boom)
+    monkeypatch.setattr(llm, "CALLERS", {"gemini": boom, "openai": boom})
+    recs = [{"conversation_id": f"c{i}", "channel": "agent chat", "language": "RU", "audio_url": None,
+             "transcript": [{"timestamp": "00:00", "speaker": "client", "text": "?"},
+                            {"timestamp": "00:05", "speaker": "operator", "text": "Здравствуйте, я Ива"}]} for i in range(10)]
+    f = tmp_path / "set.json"
+    f.write_text(_j.dumps({"isSuccess": True, "data": {"records": recs}}), encoding="utf-8")
+    out = tmp_path / "dry.json"
+    assert control_run.main(["G", "--file", str(f), "--dry-run", "--out", str(out)]) == 0
+    doc = _j.loads(out.read_text(encoding="utf-8"))
+    assert len(doc["results"]) == 10 and all(r["status"] == "ok" for r in doc["results"])
+    assert not real_db.exists()                       # the real database was not touched

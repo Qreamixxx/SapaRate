@@ -78,6 +78,7 @@ def main(argv=None) -> int:
     ap.add_argument("--ids", default=None, help="только эти conversation_id через запятую (для проверок)")
     ap.add_argument("--fresh", action="store_true", help="оценить заново, даже если уже оценено (репетиция)")
     ap.add_argument("--model", default=None, help="название модели Gemini (иначе GEMINI_MODEL из .env)")
+    ap.add_argument("--dry-run", action="store_true", help="проверка без вызовов модели: заглушки, временная база, файл results/rehearsal/dry_run.json")
     ap.add_argument("--keys", default=None, help="только эти ключи по названию, напр. 06,07 (остальные не трогать)")
     ap.add_argument("--checklist", default=None)
     a = ap.parse_args(argv)
@@ -86,10 +87,21 @@ def main(argv=None) -> int:
         settings.GEMINI_MODEL = a.model
     if a.keys:
         settings.GEMINI_USE_KEYS = a.keys
+    plan = None
+    if a.dry_run:  # no model calls, no writes to the real database
+        import tempfile
+        plan = (llm.active_model(), llm.gemini_models(), [lb for lb, _ in llm.gemini_key_items()])
+        settings.DB_PATH = Path(tempfile.mkdtemp()) / "dry.db"
+        storage._conn = None
+        settings.PROVIDER = "mock"
+        settings.DATA_DIR = Path(tempfile.mkdtemp())
+        if not a.out:
+            a.out = str(ROOT / "results" / "rehearsal" / "dry_run.json")
+        print(f"[dry-run] модели вызваны НЕ будут. Настоящая цепочка: {plan[1]}; ключи по порядку: {plan[2]}")
     service.bootstrap()
     chain = llm.active_model()
     print(f"Модель: {chain['chain']} / {chain['model']}, потоков: {a.workers}, ключи: {[lb for lb, _ in llm.gemini_key_items()]}")
-    if chain["provider"] == "mock":
+    if chain["provider"] == "mock" and not a.dry_run:
         print("✗ Включён MOCK-режим (нет ключа). Останавливаюсь, чтобы не выгрузить заглушки.")
         return 2
 
