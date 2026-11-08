@@ -47,6 +47,8 @@ PROVIDER = env("PROVIDER", "auto").lower()
 GEMINI_API_KEY = env("GEMINI_API_KEY")
 # Several keys (comma-separated). Order = key number 1, 2, ... in logs. The single GEMINI_API_KEY is also used (added last if new).
 GEMINI_API_KEYS = env("GEMINI_API_KEYS")
+GEMINI_KEY_LABELS = env("GEMINI_KEY_LABELS")  # names of the keys in the same order, e.g. 06,07,08 (used in logs and --keys)
+GEMINI_USE_KEYS = env("GEMINI_USE_KEYS")      # only these labels (e.g. 06,07) - keeps the other keys in reserve
 GEMINI_MAX_KEYS = int(env_float("GEMINI_MAX_KEYS", 0))  # 0 = all keys; N = only the first N (to keep the others in reserve)
 # One model or a comma-separated list. Free tier = only 20 requests per model per day, so the next model in the list
 # is used when one runs out. (gemini-3.5-flash / 3.6 / 3.7 / 3.8 were exhausted or very slow on 2026-11-08.)

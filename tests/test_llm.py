@@ -135,3 +135,66 @@ def test_next_key_same_model_and_max_keys(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_MAX_KEYS", 2)
     assert llm.gemini_keys() == ["k1", "k2"]
     llm._dead.clear()
+
+
+def test_use_keys_restricts_and_labels(monkeypatch):
+    from backend import llm, settings
+    monkeypatch.setattr(settings, "GEMINI_API_KEYS", "a,b,c,d")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(settings, "GEMINI_KEY_LABELS", "06,07,08,09")
+    monkeypatch.setattr(settings, "GEMINI_MAX_KEYS", 0)
+    monkeypatch.setattr(settings, "GEMINI_USE_KEYS", "06,07")
+    assert llm.gemini_key_items() == [("06", "a"), ("07", "b")]
+    monkeypatch.setattr(settings, "GEMINI_USE_KEYS", "")
+    assert len(llm.gemini_keys()) == 4
+    calls = []
+
+    def fake(model, key, system, turns, cl):
+        calls.append(key)
+        return "{}", {"input_tokens": 0, "output_tokens": 0}
+
+    monkeypatch.setattr(settings, "GEMINI_USE_KEYS", "08,09")
+    monkeypatch.setattr(llm, "_call_gemini_model", fake)
+    llm._dead.clear()
+    _, u = llm.call_gemini("s", [], {})
+    assert calls == ["c"] and u["key"] == "08"          # keys 06/07 are never touched
+
+
+def test_exhausted_keys_skipped_fast_no_sleep(monkeypatch):
+    """06,07 daily-limited -> goes straight to 08 without sleeping or extra passes."""
+    from backend import llm, settings
+    import time as _t
+    monkeypatch.setattr(settings, "GEMINI_API_KEYS", "a,b,c")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(settings, "GEMINI_KEY_LABELS", "06,07,08")
+    monkeypatch.setattr(settings, "GEMINI_USE_KEYS", "")
+    monkeypatch.setattr(settings, "GEMINI_MAX_KEYS", 0)
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "m1,m2")
+    calls = []
+
+    def fake(model, key, system, turns, cl):
+        calls.append((model, key))
+        if key in ("a", "b"):
+            raise llm.RateLimited("Gemini: дневной лимит исчерпан")
+        return "{}", {"input_tokens": 0, "output_tokens": 0}
+
+    slept = []
+    monkeypatch.setattr(_t, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(llm, "_call_gemini_model", fake)
+    llm._dead.clear()
+    _, u = llm.call_gemini("s", [], {})
+    assert u["key"] == "08" and u["model"] == "m1" and slept == []
+    n = len(calls)
+    llm.call_gemini("s", [], {})
+    assert len(calls) == n + 1                          # dead pairs not asked again
+    llm._dead.clear()
+
+
+import pytest as _pytest
+
+
+@_pytest.fixture(autouse=True)
+def _clean_key_settings(monkeypatch):
+    from backend import settings
+    monkeypatch.setattr(settings, "GEMINI_KEY_LABELS", "")
+    monkeypatch.setattr(settings, "GEMINI_USE_KEYS", "")

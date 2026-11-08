@@ -268,27 +268,37 @@ def gemini_models() -> list[str]:
     return [m.strip() for m in settings.GEMINI_MODEL.split(",") if m.strip()]
 
 
-def gemini_keys() -> list[str]:
-    """All keys in order (number = position + 1): GEMINI_API_KEYS, then GEMINI_API_KEY if it is not among them."""
+def gemini_key_items() -> list[tuple]:
+    """[(label, key)] in order. Label = name from GEMINI_KEY_LABELS (e.g. "06") or the position 1,2,… .
+    GEMINI_USE_KEYS (labels) / GEMINI_MAX_KEYS limit the set for a run; the others stay untouched."""
     keys = [k.strip() for k in (settings.GEMINI_API_KEYS or "").split(",") if k.strip()]
     if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY not in keys:
         keys.append(settings.GEMINI_API_KEY)
+    labels = [x.strip() for x in (settings.GEMINI_KEY_LABELS or "").split(",") if x.strip()]
+    items = [((labels[i] if i < len(labels) else i + 1), k) for i, k in enumerate(keys)]
+    if settings.GEMINI_USE_KEYS:
+        use = {x.strip() for x in settings.GEMINI_USE_KEYS.split(",") if x.strip()}
+        items = [(lb, k) for lb, k in items if str(lb) in use]
     if settings.GEMINI_MAX_KEYS > 0:
-        keys = keys[:settings.GEMINI_MAX_KEYS]
-    return keys
+        items = items[:settings.GEMINI_MAX_KEYS]
+    return items
+
+
+def gemini_keys() -> list[str]:
+    return [k for _, k in gemini_key_items()]
 
 
 def call_gemini(system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
     """For each model (best first): try every key; on a daily limit go to the next key, and only when all keys
     are used up for this model go to the next model."""
-    keys = gemini_keys()
+    keys = gemini_key_items()
     if not keys:
         raise LLMError("Не задан GEMINI_API_KEY / GEMINI_API_KEYS в .env")
     last: Exception | None = None
     for attempt in range(4):  # extra passes only when everything was limited per minute (not daily)
         minute_limited = False
         for model in gemini_models():
-            for n, key in enumerate(keys, 1):
+            for n, key in keys:
                 if (model, n) in _dead:
                     continue
                 try:

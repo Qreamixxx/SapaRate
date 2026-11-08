@@ -78,14 +78,17 @@ def main(argv=None) -> int:
     ap.add_argument("--ids", default=None, help="только эти conversation_id через запятую (для проверок)")
     ap.add_argument("--fresh", action="store_true", help="оценить заново, даже если уже оценено (репетиция)")
     ap.add_argument("--model", default=None, help="название модели Gemini (иначе GEMINI_MODEL из .env)")
+    ap.add_argument("--keys", default=None, help="только эти ключи по названию, напр. 06,07 (остальные не трогать)")
     ap.add_argument("--checklist", default=None)
     a = ap.parse_args(argv)
     started = time.time()
     if a.model:
         settings.GEMINI_MODEL = a.model
+    if a.keys:
+        settings.GEMINI_USE_KEYS = a.keys
     service.bootstrap()
     chain = llm.active_model()
-    print(f"Модель: {chain['chain']} / {chain['model']}, потоков: {a.workers}")
+    print(f"Модель: {chain['chain']} / {chain['model']}, потоков: {a.workers}, ключи: {[lb for lb, _ in llm.gemini_key_items()]}")
     if chain["provider"] == "mock":
         print("✗ Включён MOCK-режим (нет ключа). Останавливаюсь, чтобы не выгрузить заглушки.")
         return 2
