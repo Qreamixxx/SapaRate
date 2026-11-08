@@ -140,7 +140,13 @@ _jobs_lock = threading.Lock()
 def start_batch(checklist_id: str, version: int | None, group_id: str | None,
                 conversation_ids: list[str] | None, only_missing: bool) -> dict:
     cl = get_checklist(checklist_id, version)
+    if conversation_ids is not None and len(conversation_ids) == 0:
+        raise ValueError("Не выбрано ни одного диалога")
     ids = conversation_ids or [c["conversation_id"] for c in storage.list_conversations(group_id)]
+    ids = list(dict.fromkeys(ids))
+    unknown = [i for i in ids if not storage.get_conversation(i)]
+    if unknown:
+        raise ValueError("Нет таких диалогов: " + ", ".join(unknown[:5]))
     if only_missing:
         ids = [i for i in ids if not storage.has_evaluation(i, cl["checklist_id"], cl["version"])]
     job = {"job_id": storage.new_id("job"), "total": len(ids), "done": 0, "failed": 0, "errors": [],
@@ -304,3 +310,71 @@ def stats() -> dict:
         "open_appeals": len(storage.list_appeals("open")),
         **llm.active_model(),
     }
+
+
+# ---------------------------------------------------------------- compare versions / summary (saved data only, no model calls)
+def _latest_by_version(group_id: str | None, checklist_id: str, version: int) -> dict[str, dict]:
+    ids = {c["conversation_id"] for c in storage.list_conversations(group_id)} if group_id else None
+    out: dict[str, dict] = {}
+    for ev in storage.all_evaluations():  # ordered by time: the last one of this version wins
+        if ev["checklist_id"] == checklist_id and ev["checklist_version"] == version                 and ev["usage"].get("provider") != "mock" and (ids is None or ev["conversation_id"] in ids):
+            out[ev["conversation_id"]] = ev
+    return out
+
+
+def _vals(ev: dict) -> dict[str, tuple]:
+    return {i["criterion_id"]: (i["answer"], i["value"]) for i in ev["result"]["items"]}
+
+
+def compare_versions(checklist_id: str, a: int, b: int, group_id: str | None = None) -> dict:
+    """Per dialogue: total in version a, in version b, difference and which criteria changed."""
+    get_checklist(checklist_id, a)
+    get_checklist(checklist_id, b)
+    ea, eb = _latest_by_version(group_id, checklist_id, a), _latest_by_version(group_id, checklist_id, b)
+    titles = {i["criterion_id"]: i["title"] for ev in list(ea.values())[:1] + list(eb.values())[:1]
+              for i in ev["result"]["items"]}
+    rows = []
+    for cid in [c["conversation_id"] for c in storage.list_conversations(group_id)]:
+        if cid not in ea or cid not in eb:
+            continue
+        va, vb = _vals(ea[cid]), _vals(eb[cid])
+        changed = [{"criterion_id": k, "title": titles.get(k, k), "before": {"answer": va.get(k, (None, None))[0], "value": va.get(k, (None, None))[1]},
+                    "after": {"answer": vb.get(k, (None, None))[0], "value": vb.get(k, (None, None))[1]}}
+                   for k in dict.fromkeys(list(va) + list(vb)) if va.get(k) != vb.get(k)]
+        ta, tb = ea[cid]["result"]["total"], eb[cid]["result"]["total"]
+        rows.append({"conversation_id": cid, "total_a": ta, "total_b": tb,
+                     "diff": round(tb - ta, 2) if ta is not None and tb is not None else None,
+                     "critical_a": ea[cid]["result"]["critical_error"], "critical_b": eb[cid]["result"]["critical_error"],
+                     "changed": changed})
+    ta = [r["total_a"] for r in rows if r["total_a"] is not None]
+    tb = [r["total_b"] for r in rows if r["total_b"] is not None]
+    return {"checklist_id": checklist_id, "a": a, "b": b, "group_id": group_id, "rows": rows,
+            "summary": {"compared": len(rows), "only_in_a": len(set(ea) - set(eb)), "only_in_b": len(set(eb) - set(ea)),
+                        "changed_dialogues": sum(1 for r in rows if r["changed"] or r["diff"]),
+                        "avg_a": round(sum(ta) / len(ta), 2) if ta else None,
+                        "avg_b": round(sum(tb) / len(tb), 2) if tb else None}}
+
+
+def summary(group_id: str | None = None) -> dict:
+    """Set summary from the latest saved evaluation of each dialogue: average, answer shares per criterion, gross errors."""
+    ids = [c["conversation_id"] for c in storage.list_conversations(group_id)]
+    latest: dict[str, dict] = {}
+    for ev in storage.all_evaluations():
+        if ev["usage"].get("provider") != "mock":
+            latest[ev["conversation_id"]] = ev
+    evs = [latest[i] for i in ids if i in latest]
+    totals = [e["result"]["total"] for e in evs if e["result"]["total"] is not None]
+    crit: dict[str, dict] = {}
+    for e in evs:
+        for it in e["result"]["items"]:
+            c = crit.setdefault(it["criterion_id"], {"criterion_id": it["criterion_id"], "title": it["title"], "type": it["type"],
+                                                    "counts": {}, "n": 0})
+            key = "na" if it["answer"] == "na" else (str(it["value"]) if it["type"] == "scale" else it["answer"])
+            c["counts"][key] = c["counts"].get(key, 0) + 1
+            c["n"] += 1
+    for c in crit.values():
+        c["percent"] = {k: round(v / c["n"] * 100, 1) for k, v in c["counts"].items()}
+    return {"group_id": group_id, "dialogues": len(ids), "evaluated": len(evs),
+            "avg_total": round(sum(totals) / len(totals), 2) if totals else None,
+            "criteria": list(crit.values()),
+            "critical": [e["conversation_id"] for e in evs if e["result"]["critical_error"]]}

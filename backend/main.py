@@ -154,6 +154,16 @@ def batch_status(job_id: str):
     return service.get_job(job_id)
 
 
+@app.get("/api/compare")
+def compare(checklist_id: str, a: int, b: int, group_id: Optional[str] = None):
+    return service.compare_versions(checklist_id, a, b, group_id or None)
+
+
+@app.get("/api/summary")
+def summary(group_id: Optional[str] = None):
+    return service.summary(group_id or None)
+
+
 @app.get("/api/appeals")
 def appeals(status: Optional[str] = None, evaluation_id: Optional[str] = None):
     return service.list_appeals(status, evaluation_id)
