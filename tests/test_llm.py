@@ -198,3 +198,35 @@ def _clean_key_settings(monkeypatch):
     from backend import settings
     monkeypatch.setattr(settings, "GEMINI_KEY_LABELS", "")
     monkeypatch.setattr(settings, "GEMINI_USE_KEYS", "")
+
+
+def test_groq_is_used_only_after_all_gemini_keys_and_models_are_limited(monkeypatch):
+    from backend import llm, settings
+    seen = []
+
+    def gemini_fake(model, key, system, turns, cl):
+        seen.append(("gemini", model, key))
+        raise llm.RateLimited("Gemini: дневной лимит исчерпан")
+
+    def openai_fake(system, turns, cl):
+        seen.append(("openai",))
+        items = [{"criterion_id": c["id"], "answer": ("score" if c["type"] == "scale" else "no" if c["type"] == "critical" else "yes"),
+                  "value": (c["scale"][0]["value"] if c["type"] == "scale" else None), "explanation": "ok", "evidence_ids": [1],
+                  "checked_range": None} for c in CL["criteria"]]
+        return json.dumps({"items": items}), {"input_tokens": 1, "output_tokens": 1}
+
+    monkeypatch.setattr(settings, "PROVIDER", "auto")
+    monkeypatch.setattr(settings, "GEMINI_API_KEYS", "a,b")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "m1,m2")
+    monkeypatch.setattr(settings, "OPENAI_API_KEY", "g")
+    monkeypatch.setattr(settings, "OPENAI_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(llm, "_call_gemini_model", gemini_fake)
+    monkeypatch.setitem(llm.CALLERS, "openai", openai_fake)
+    llm._dead.clear()
+    assert llm.provider_chain() == ["gemini", "openai"]
+    conv = CONV
+    res = llm.evaluate(CL, conv, compute_facts(conv, CL))
+    assert [s[0] for s in seen] == ["gemini"] * 4 + ["openai"]      # 2 models x 2 keys first, Groq last
+    assert res["provider"] == "openai" and res["model"] == "openai/gpt-oss-120b"
+    llm._dead.clear()

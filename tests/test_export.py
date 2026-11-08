@@ -139,3 +139,13 @@ def test_replaced_criterion_keeps_code():
     assert exporter.code_for(4, "c05", []) == "empathy"
     assert exporter.code_for(8, "c09", []) is None
     assert exporter.code_for(2, "custom", []) == "identification"
+
+
+def test_model_name_of_groq_in_results(monkeypatch):
+    """Evaluations made by the fallback provider put its real model name into model.name."""
+    monkeypatch.setattr(exporter, "latest_eval", lambda cid, checklist_id=None: {
+        **make_ev(), "usage": {"model": "openai/gpt-oss-120b", "provider": "openai"}})
+    monkeypatch.setattr(storage, "get_checklist", lambda *a, **k: {"criteria": []})
+    doc = exporter.build([CONV])
+    assert doc["model"] == {"mode": "external_api", "name": "openai/gpt-oss-120b"}
+    assert doc["results"][0]["status"] == "ok"
