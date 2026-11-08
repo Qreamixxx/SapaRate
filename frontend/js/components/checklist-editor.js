@@ -193,13 +193,10 @@ class ChecklistEditor extends HTMLElement {
           <div class="small">${job.finished ? 'Готово' : 'Идёт оценка'}: ${job.done} из ${job.total}${job.failed ? `, ошибок ${job.failed}` : ''}. <a href="#/dialogs">Открыть диалоги →</a></div>` : ''}
       </div>` : ''}
       <div class="card card-pad stack">
-        <div class="row"><h3 class="grow">Веса</h3><span class="small muted" id="wSum">сумма ${num(sum)}</span></div>
-        <div class="seg" id="wmode"><button type="button" data-action="wmode-fixed" class="${this.wmode() === 'fixed' ? 'on' : ''}">Сумма всегда 100</button>
-          <button type="button" data-action="wmode-free" class="${this.wmode() === 'free' ? 'on' : ''}">Свободный</button></div>
-        <div class="small muted">${this.wmode() === 'fixed' ? 'Изменили вес — он закрепляется (замок), остальные пересчитываются так, чтобы сумма была 100.' : 'Сумма весов любая; итог всё равно считается из 100.'}</div>
+        <div class="row"><h3 class="grow">Веса</h3><span class="small muted" id="wSum">сумма ${num(sum)}</span>
+          <label class="wchk" title="Остальные веса пересчитываются сами"><input type="checkbox" id="wFixed" data-action="wmode-toggle" ${this.wmode() === 'fixed' ? 'checked' : ''}>= 100</label></div>
         ${s.wmsg ? `<div class="alert bad small" id="wMsg">${esc(s.wmsg)}</div>` : ''}
-        ${Math.abs(sum - 100) > 0.001 ? `<div class="alert info small" id="wNote">Сумма весов: ${num(sum)}. Итог всё равно считается из 100: набранные баллы делятся на максимум.</div>
-        <button class="btn sm" data-action="norm100" id="norm100">Привести к 100</button>` : ''}
+        ${Math.abs(sum - 100) > 0.001 ? '<button class="btn sm" data-action="norm100" id="norm100" title="Пропорционально привести сумму весов к 100">→ 100</button>' : ''}
         <div class="weights">${weighted.map(c => `<div class="w"><span class="mono">${esc(c.id)}</span>
           <div class="bar"><div style="width:${sum ? (+c.weight / sum * 100) : 0}%"></div></div>
           <span class="num">${num(sum ? +c.weight / sum * (+d.max_total || 100) : 0, 1)}</span></div>`).join('')}</div>
@@ -283,8 +280,7 @@ class ChecklistEditor extends HTMLElement {
         return;
       }
       case 'del-crit': if (confirmDelete(d.criteria[i])) { d.criteria.splice(i, 1); this.rerenderKeepScroll(); } return;
-      case 'wmode-fixed': return this.setWmode('fixed');
-      case 'wmode-free': return this.setWmode('free');
+      case 'wmode-toggle': return this.setWmode(b.checked ? 'fixed' : 'free');
       case 'toggle-lock': {
         const c = d.criteria[i];
         this.state.locked = this.state.locked || new Set();

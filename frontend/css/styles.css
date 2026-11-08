@@ -395,3 +395,6 @@ table.list th { font-size: 12px; font-weight: 500; }
 #dlgBody .badge.call { color: var(--ink-2); }
 #dlgBody .mono { font-size: 13px; }
 #dlgBody .preview { font-size: 13px; }
+
+.wchk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.wchk input { margin: 0; accent-color: var(--accent); }
