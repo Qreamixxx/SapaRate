@@ -8,3 +8,7 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+results/rehearsal/
+*.pdf
+invoke.json
+DataSci_NU*.txt
