@@ -217,7 +217,7 @@ def _backoff(fn, label: str):
             quota = quota.group(1) if quota else ""
             if e.status == 429 and "PerDay" in quota:  # daily limit: waiting will not help, switch provider now
                 raise RateLimited(f"{label}: дневной лимит исчерпан ({quota}), сброс в полночь по тихоокеанскому времени") from None
-            retryable = e.status in (429, 500, 502, 503, 504)
+            retryable = e.status in (0, 429, 500, 502, 503, 504)  # 0 = timeout / no connection
             if retryable and attempt < len(waits):
                 try:
                     wait = float(e.headers.get("retry-after") or waits[attempt])
@@ -262,7 +262,7 @@ def call_gemini(system: str, turns: list[dict], cl: dict) -> tuple[str, dict]:
         if use_thinking and settings.GEMINI_THINKING:
             config["thinkingConfig"] = {"thinkingLevel": settings.GEMINI_THINKING}
         body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": contents, "generationConfig": config}
-        return http_util.post_json(url, body, headers={"x-goog-api-key": settings.GEMINI_API_KEY}, timeout=180)
+        return http_util.post_json(url, body, headers={"x-goog-api-key": settings.GEMINI_API_KEY}, timeout=100)
 
     try:
         res = _backoff(lambda: send(True), "Gemini")

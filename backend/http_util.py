@@ -1,5 +1,6 @@
 """Tiny HTTP helper on the standard library (so no requests/httpx dependency)."""
 import json
+import socket
 import urllib.error
 import urllib.request
 
@@ -32,6 +33,8 @@ def request(url: str, method: str = "GET", data=None, headers: dict | None = Non
         raise HttpError(e.code, text, {k.lower(): v for k, v in (e.headers or {}).items()}) from None
     except urllib.error.URLError as e:
         raise HttpError(0, f"Нет соединения: {e.reason}") from None
+    except (TimeoutError, socket.timeout):
+        raise HttpError(0, "Таймаут: сервер не ответил вовремя") from None
 
 
 def get_json(url: str, timeout: float = 60):
